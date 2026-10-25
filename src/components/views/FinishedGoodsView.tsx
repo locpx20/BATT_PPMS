@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Package, CheckCircle2, Search, ArrowRight, Check, History, X } from 'lucide-react';
+import { Package, CheckCircle2, Search, ArrowRight, Check, History, X, Boxes } from 'lucide-react';
 import { User, LotItem } from '../../types';
 import { db } from '../../services/db';
 import { Permissions } from '../../services/rbac';
 import { MetricCard } from '../common/MetricCard';
 import { StatusBadge } from '../common/StatusBadge';
 import { showToast } from '../common/Toast';
+import { formatNumberVN } from '../../utils/formatters';
 
 interface FinishedGoodsViewProps {
   currentUser: User;
@@ -32,11 +33,11 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
     });
 
     if (res.success) {
-      const whName = lot.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)';
+      const whName = lot.targetWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B';
       showToast(
         'success',
         'Nhập kho thành phẩm thành công',
-        `Đã nhận ${lot.jumboBagsCount} bao Jumbo (${lot.quantityKg.toLocaleString('vi-VN')} kg) vào ${whName}`
+        `Đã nhận ${lot.jumboBagsCount} bao Jumbo (${formatNumberVN(lot.quantityKg)} kg) vào ${whName}`
       );
     } else {
       showToast('error', 'Lỗi', res.error);
@@ -45,23 +46,23 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
 
   return (
     <div className="space-y-6">
-      {/* Top Banner KPI - Distinct Kho A and Kho B */}
+      {/* Top Banner KPI - Strictly Kho A and Kho B */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <MetricCard
-          title="Tồn Kho A (Xuất khẩu)"
+          title="Tồn Kho A"
           value={(balanceA / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
           unit="Tấn"
           iconName="Package"
           color="indigo"
-          subtext="Viên nén đạt chuẩn Grade A (ENplus-A1)"
+          subtext="Viên nén gỗ lưu trữ tại Kho A"
         />
         <MetricCard
-          title="Tồn Kho B (Công nghiệp)"
+          title="Tồn Kho B"
           value={(balanceB / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
           unit="Tấn"
           iconName="Boxes"
           color="sky"
-          subtext="Viên nén đạt chuẩn Grade B (Nồi hơi)"
+          subtext="Viên nén gỗ lưu trữ tại Kho B"
         />
         <MetricCard
           title="Tổng Tồn Thành phẩm"
@@ -69,15 +70,15 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
           unit="Tấn"
           iconName="CheckCircle2"
           color="emerald"
-          subtext="Tổng lượng khả dụng cả Kho A và Kho B"
+          subtext="Tổng lượng tồn khả dụng Kho A và Kho B"
         />
         <MetricCard
-          title="LOT Chờ nhập kho"
+          title="Lô hàng Chờ nhập kho"
           value={pendingReceiveLots.length}
-          unit="LOT"
+          unit="Lô (LOT)"
           iconName="ArrowRight"
           color="amber"
-          subtext="Đã đạt 3 lần QC, chờ thủ kho kiểm đếm"
+          subtext="Đã hoàn thành QC, chờ thủ kho kiểm đếm"
         />
       </div>
 
@@ -102,12 +103,12 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-slate-900">{lot.lotCode}</span>
                     <span className="font-semibold text-slate-800">{lot.productName}</span>
-                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
-                      {lot.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'}
+                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {lot.targetWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'}
                     </span>
                   </div>
                   <p className="text-slate-500 mt-0.5">
-                    Ngày sản xuất: {lot.productionDate} • Số lượng: {lot.quantityKg.toLocaleString('vi-VN')} kg (
+                    Ngày sản xuất: {lot.productionDate} • Số lượng: {formatNumberVN(lot.quantityKg)} kg (
                     {lot.jumboBagsCount} bao Jumbo)
                   </p>
                 </div>
@@ -143,124 +144,146 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
             <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="py-3 px-4">Mã LOT</th>
+                <th className="py-3 px-4">Vị trí kho</th>
                 <th className="py-3 px-4">Ngày sản xuất</th>
-                <th className="py-3 px-4">Sản phẩm</th>
-                <th className="py-3 px-4">Phân hạng</th>
-                <th className="py-3 px-4 text-right">Tổng khối lượng</th>
+                <th className="py-3 px-4 text-right">Khối lượng ban đầu</th>
+                <th className="py-3 px-4 text-right">Khả dụng xuất kho</th>
                 <th className="py-3 px-4 text-right">Bao Jumbo</th>
-                <th className="py-3 px-4 text-right">Tồn khả dụng</th>
+                <th className="py-3 px-4">Độ ẩm QC TB</th>
                 <th className="py-3 px-4">Thủ kho tiếp nhận</th>
-                <th className="py-3 px-4 text-center">Truy xuất</th>
+                <th className="py-3 px-4 text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {inWarehouseLots.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-8 text-center text-slate-400">
-                    Chưa có lô hàng thành phẩm nào trong kho
+                    Kho thành phẩm hiện đang trống
                   </td>
                 </tr>
               ) : (
-                inWarehouseLots.map((lot) => (
-                  <tr key={lot.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-indigo-700">{lot.lotCode}</td>
-                    <td className="py-3 px-4">{lot.productionDate}</td>
-                    <td className="py-3 px-4 font-medium text-slate-800">{lot.productName}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {lot.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">{lot.quantityKg.toLocaleString('vi-VN')} kg</td>
-                    <td className="py-3 px-4 text-right">{lot.jumboBagsCount} bao</td>
-                    <td className="py-3 px-4 text-right font-bold text-slate-900">
-                      {lot.availableQuantityKg.toLocaleString('vi-VN')} kg
-                    </td>
-                    <td className="py-3 px-4">{lot.receivedByName || 'Thủ kho'}</td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedLotTrace(lot)}
-                        className="px-2.5 py-1 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium cursor-pointer"
-                      >
-                        Truy xuất LOT →
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                inWarehouseLots.map((lot) => {
+                  const avgMoisture =
+                    lot.tests.length > 0
+                      ? (lot.tests.reduce((s, t) => s + t.moisturePercent, 0) / lot.tests.length).toFixed(1)
+                      : '—';
+
+                  return (
+                    <tr key={lot.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-indigo-700">{lot.lotCode}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                          {lot.targetWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">{lot.productionDate}</td>
+                      <td className="py-3 px-4 text-right font-medium">
+                        {formatNumberVN(lot.quantityKg)} kg
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-slate-900">
+                        {formatNumberVN(lot.availableQuantityKg)} kg
+                      </td>
+                      <td className="py-3 px-4 text-right font-medium">{lot.jumboBagsCount} bao</td>
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-emerald-700">{avgMoisture}%</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div>
+                          <span className="font-medium text-slate-800">{lot.receivedByName}</span>
+                          <span className="block text-[10px] text-slate-400">
+                            {lot.receivedAt ? new Date(lot.receivedAt).toLocaleDateString('vi-VN') : ''}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedLotTrace(lot)}
+                          className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer"
+                        >
+                          Truy xuất
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* FULL TRACEABILITY MODAL */}
+      {/* TRACEABILITY MODAL */}
       {selectedLotTrace && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">Truy xuất Nguồn gốc Toàn bộ (Traceability)</h3>
-                <p className="text-xs text-indigo-700 font-mono font-bold">{selectedLotTrace.lotCode}</p>
-              </div>
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-base">Hồ sơ Truy xuất Nguồn gốc: {selectedLotTrace.lotCode}</h3>
               <button
+                type="button"
                 onClick={() => setSelectedLotTrace(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5 text-xs">
-              {/* Step 1: Production Plan */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="font-bold text-indigo-700 uppercase tracking-wider text-[11px] block">
-                  1. Kế hoạch Sản xuất gốc
-                </span>
-                <p className="font-semibold text-slate-800">{selectedLotTrace.planCode}</p>
-                <p className="text-slate-500">Sản phẩm: {selectedLotTrace.productName}</p>
+            <div className="p-6 space-y-4 text-xs">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Mã kế hoạch sản xuất:</span>
+                  <span className="font-mono font-bold text-indigo-700">{selectedLotTrace.planCode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Vị trí kho lưu trữ:</span>
+                  <span className="font-bold text-slate-800">
+                    {selectedLotTrace.targetWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Ngày sản xuất hoàn thành:</span>
+                  <span className="font-medium text-slate-800">{selectedLotTrace.productionDate}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Quy cách đóng gói:</span>
+                  <span className="font-medium text-slate-800">{selectedLotTrace.jumboBagsCount} bao Jumbo (1 tấn/bao)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Tồn khả dụng hiện tại:</span>
+                  <span className="font-bold text-emerald-700">{formatNumberVN(selectedLotTrace.availableQuantityKg)} kg</span>
+                </div>
               </div>
 
-              {/* Step 2: Shift Report */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="font-bold text-indigo-700 uppercase tracking-wider text-[11px] block">
-                  2. Báo cáo Ca Sản xuất
-                </span>
-                <p className="font-semibold text-slate-800">Mã ca: {selectedLotTrace.shiftReportId}</p>
-                <p className="text-slate-500">
-                  Ngày sản xuất: {selectedLotTrace.productionDate} • Sản lượng: {selectedLotTrace.quantityKg} kg
-                </p>
-              </div>
-
-              {/* Step 3: 3 Independent QC Tests */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <span className="font-bold text-indigo-700 uppercase tracking-wider text-[11px] block">
-                  3. Kết quả 3 Lần Kiểm tra KCS Độc lập ({selectedLotTrace.targetWarehouse === 'KHO_A' ? 'Kho A - Xuất khẩu' : 'Kho B - Công nghiệp'})
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-2">
+                  Lịch sử 3 lần Kiểm tra KCS
+                </h4>
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
                   {selectedLotTrace.tests.map((t) => (
-                    <div key={t.testNumber} className="p-2 rounded-lg bg-white border border-slate-200 text-[11px]">
-                      <span className="font-bold block text-slate-800">Lần {t.testNumber}</span>
-                      <p className="text-slate-600">Độ ẩm: {t.moisturePercent}%</p>
-                      <p className="text-slate-600">Độ tro: {t.ashPercent}%</p>
-                      <p className="text-slate-400 mt-1">KCS: {t.testedByName}</p>
+                    <div key={t.testNumber} className="p-3 bg-white flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-slate-800">Lần {t.testNumber}</span>
+                        <span className="text-slate-400 text-[10px] ml-2">({t.testedByName})</span>
+                      </div>
+                      <div className="space-x-3 text-slate-700">
+                        <span>Độ ẩm: <strong>{t.moisturePercent}%</strong></span>
+                        <span>Độ tro: <strong>{t.ashPercent}%</strong></span>
+                        <span>Tạp chất: <strong>{t.impuritiesPercent}%</strong></span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
+            </div>
 
-              {/* Step 4: Warehouse Receipt */}
-              <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 space-y-1">
-                <span className="font-bold text-teal-800 uppercase tracking-wider text-[11px] block">
-                  4. Tiếp nhận Nhập kho Thành phẩm Vật lý
-                </span>
-                <p className="text-teal-900 font-semibold">
-                  Thủ kho xác nhận: {selectedLotTrace.receivedByName || 'Phạm Thị Phương Thảo'}
-                </p>
-                <p className="text-teal-700">
-                  Thời gian: {selectedLotTrace.receivedAt ? new Date(selectedLotTrace.receivedAt).toLocaleString('vi-VN') : 'Đã nhập kho'}
-                </p>
-              </div>
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedLotTrace(null)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold cursor-pointer"
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

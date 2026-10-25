@@ -6,8 +6,10 @@ interface ReasonModalProps {
   title: string;
   actionType: 'RETURN' | 'REJECT';
   entityName?: string;
+  entityCode?: string;
   onClose: () => void;
-  onSubmit: (reason: string) => void;
+  onSubmit?: (reason: string) => void;
+  onConfirm?: (reason: string) => void;
 }
 
 export const ReasonModal: React.FC<ReasonModalProps> = ({
@@ -15,8 +17,10 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({
   title,
   actionType,
   entityName,
+  entityCode,
   onClose,
   onSubmit,
+  onConfirm,
 }) => {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
@@ -29,7 +33,8 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({
       setError('Vui lòng nhập lý do cụ thể trước khi xác nhận');
       return;
     }
-    onSubmit(reason.trim());
+    if (onSubmit) onSubmit(reason.trim());
+    if (onConfirm) onConfirm(reason.trim());
     setReason('');
     setError('');
   };
@@ -59,9 +64,9 @@ export const ReasonModal: React.FC<ReasonModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5">
-          {entityName && (
+          {(entityName || entityCode) && (
             <p className="text-xs font-medium text-slate-500 mb-2">
-              Đối tượng xử lý: <span className="font-semibold text-slate-800">{entityName}</span>
+              Đối tượng xử lý: <span className="font-semibold text-slate-800">{entityCode || entityName}</span>
             </p>
           )}
 

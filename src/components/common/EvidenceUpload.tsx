@@ -4,17 +4,26 @@ import { Upload, X, Image as ImageIcon } from 'lucide-react';
 interface EvidenceUploadProps {
   label: string;
   value?: string;
-  onChange: (base64Url?: string) => void;
+  currentImageUrl?: string;
+  onChange?: (base64Url?: string) => void;
+  onImageSelected?: (base64Url?: string) => void;
   required?: boolean;
 }
 
 export const EvidenceUpload: React.FC<EvidenceUploadProps> = ({
   label,
   value,
+  currentImageUrl,
   onChange,
+  onImageSelected,
   required = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeValue = value !== undefined ? value : currentImageUrl;
+  const triggerChange = (url?: string) => {
+    if (onChange) onChange(url);
+    if (onImageSelected) onImageSelected(url);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -23,7 +32,7 @@ export const EvidenceUpload: React.FC<EvidenceUploadProps> = ({
     // Read as DataURL (base64) so it immediately persists and displays cleanly
     const reader = new FileReader();
     reader.onloadend = () => {
-      onChange(reader.result as string);
+      triggerChange(reader.result as string);
     };
     reader.readAsDataURL(file);
   };
@@ -34,12 +43,12 @@ export const EvidenceUpload: React.FC<EvidenceUploadProps> = ({
         {label} {required && <span className="text-rose-500">*</span>}
       </label>
 
-      {value ? (
+      {activeValue ? (
         <div className="relative group w-36 h-28 rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
-          <img src={value} alt="Preview" className="w-full h-full object-cover" />
+          <img src={activeValue} alt="Preview" className="w-full h-full object-cover" />
           <button
             type="button"
-            onClick={() => onChange(undefined)}
+            onClick={() => triggerChange(undefined)}
             className="absolute top-1.5 right-1.5 p-1 rounded-full bg-slate-900/70 text-white hover:bg-rose-600 transition-colors cursor-pointer"
             title="Xóa ảnh"
           >

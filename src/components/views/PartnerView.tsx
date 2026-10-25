@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Building2, Plus, Phone, MapPin, User, Search, X, Eye, Edit3, History, DollarSign } from 'lucide-react';
+import { Building2, Plus, Phone, MapPin, User, Search, X, Eye, Edit3, Power, DollarSign, History } from 'lucide-react';
 import { User as UserType, Supplier, Customer } from '../../types';
 import { db } from '../../services/db';
 import { Permissions } from '../../services/rbac';
 import { StatusBadge } from '../common/StatusBadge';
 import { showToast } from '../common/Toast';
+import { formatVND, formatNumberVN } from '../../utils/formatters';
 
 interface PartnerViewProps {
   currentUser: UserType;
@@ -16,6 +17,10 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
   const customers = snapshot.customers;
   const purchases = snapshot.purchases;
   const outboundProposals = snapshot.outboundProposals;
+  const invoices = snapshot.saleInvoices;
+
+  const canManage = Permissions.canManagePartners(currentUser.role); // Only Owner
+  const canViewCust = Permissions.canViewCustomers(currentUser.role); // Owner and Manager only, NOT Purchasing Staff
 
   const [activeTab, setActiveTab] = useState<'SUPPLIERS' | 'CUSTOMERS'>('SUPPLIERS');
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,7 +44,7 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
   const [supPhone, setSupPhone] = useState('');
   const [supAddress, setSupAddress] = useState('');
   const [supContact, setSupContact] = useState('');
-  const [supMaterials, setSupMaterials] = useState('Nguyên vật liệu');
+  const [supNotes, setSupNotes] = useState('');
 
   // Customer Add Form
   const [cusCode, setCusCode] = useState('');
@@ -47,7 +52,7 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
   const [cusPhone, setCusPhone] = useState('');
   const [cusAddress, setCusAddress] = useState('');
   const [cusContact, setCusContact] = useState('');
-  const [cusPayment, setCusPayment] = useState('T/T chuyển khoản sau khi đối soát');
+  const [cusPayment, setCusPayment] = useState('Chuyển khoản theo thỏa thuận hợp đồng');
 
   // Edit fields
   const [editName, setEditName] = useState('');
@@ -81,16 +86,23 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
         phone: supPhone.trim(),
         address: supAddress.trim(),
         contactPerson: supContact.trim(),
+        notes: supNotes.trim() || undefined,
         status: 'ACTIVE',
       },
       currentUser
     );
 
     if (res.success) {
-      showToast('success', 'Thêm Nhà cung cấp thành công', supName);
+      showToast('success', 'Tạo Nhà cung cấp thành công', `Đã thêm NCC ${supCode}`);
       setShowAddSupplierModal(false);
       setSupCode('');
       setSupName('');
+      setSupPhone('');
+      setSupAddress('');
+      setSupContact('');
+      setSupNotes('');
+    } else {
+      showToast('error', 'Lỗi', res.error);
     }
   };
 
@@ -105,17 +117,22 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
         phone: cusPhone.trim(),
         address: cusAddress.trim(),
         contactPerson: cusContact.trim(),
-        status: 'ACTIVE',
         paymentTerms: cusPayment.trim(),
+        status: 'ACTIVE',
       },
       currentUser
     );
 
     if (res.success) {
-      showToast('success', 'Thêm Khách hàng thành công', cusName);
+      showToast('success', 'Tạo Khách hàng thành công', `Đã thêm KH ${cusCode}`);
       setShowAddCustomerModal(false);
       setCusCode('');
       setCusName('');
+      setCusPhone('');
+      setCusAddress('');
+      setCusContact('');
+    } else {
+      showToast('error', 'Lỗi', res.error);
     }
   };
 
@@ -133,22 +150,69 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
     if (!editPartner) return;
 
     if (editPartner.type === 'SUPPLIER') {
-      const sup = editPartner.data as Supplier;
-      sup.name = editName;
-      sup.phone = editPhone;
-      sup.address = editAddress;
-      sup.contactPerson = editContact;
-      showToast('success', 'Cập nhật thành công', `Đã lưu thay đổi cho NCC ${sup.code}`);
+      const res = db.updateSupplier(
+        editPartner.data.id,
+        {
+          name: editName,
+          phone: editPhone,
+          address: editAddress,
+          contactPerson: editContact,
+          notes: editExtra,
+        },
+        currentUser
+      );
+      if (res.success) {
+        showToast('success', 'Cập nhật thành công', `Đã lưu thay đổi cho NCC ${editPartner.data.code}`);
+      } else {
+        showToast('error', 'Lỗi', res.error);
+      }
     } else {
-      const cus = editPartner.data as Customer;
-      cus.name = editName;
-      cus.phone = editPhone;
-      cus.address = editAddress;
-      cus.contactPerson = editContact;
-      cus.paymentTerms = editExtra;
-      showToast('success', 'Cập nhật thành công', `Đã lưu thay đổi cho Khách hàng ${cus.code}`);
+      const res = db.updateCustomer(
+        editPartner.data.id,
+        {
+          name: editName,
+          phone: editPhone,
+          address: editAddress,
+          contactPerson: editContact,
+          paymentTerms: editExtra,
+        },
+        currentUser
+      );
+      if (res.success) {
+        showToast('success', 'Cập nhật thành công', `Đã lưu thay đổi cho Khách hàng ${editPartner.data.code}`);
+      } else {
+        showToast('error', 'Lỗi', res.error);
+      }
     }
     setEditPartner(null);
+  };
+
+  const handleToggleDeactivate = (type: 'SUPPLIER' | 'CUSTOMER', partner: Supplier | Customer) => {
+    if (!canManage) {
+      showToast('error', 'Từ chối quyền', 'Chỉ Giám đốc (Owner) mới có quyền ngừng sử dụng hoặc kích hoạt lại');
+      return;
+    }
+    const isDeactivating = partner.status === 'ACTIVE';
+    const actionLabel = isDeactivating ? 'ngừng sử dụng' : 'kích hoạt lại';
+    if (!window.confirm(`Bạn có chắc chắn muốn ${actionLabel} đối tác "${partner.name}" (${partner.code})?`)) {
+      return;
+    }
+
+    if (type === 'SUPPLIER') {
+      const res = db.deactivateSupplier(partner.id, currentUser);
+      if (res.success) {
+        showToast('success', 'Thao tác thành công', `Đã ${actionLabel} NCC ${partner.code}`);
+      } else {
+        showToast('error', 'Lỗi', res.error);
+      }
+    } else {
+      const res = db.deactivateCustomer(partner.id, currentUser);
+      if (res.success) {
+        showToast('success', 'Thao tác thành công', `Đã ${actionLabel} Khách hàng ${partner.code}`);
+      } else {
+        showToast('error', 'Lỗi', res.error);
+      }
+    }
   };
 
   return (
@@ -158,11 +222,11 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Đối tác Cung ứng & Khách hàng</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Danh mục nhà cung cấp nguyên vật liệu và khách hàng thu mua viên nén gỗ trong & ngoài nước
+            Quản lý nhà cung cấp nguyên vật liệu và khách hàng tiêu thụ viên nén gỗ (Chỉ Giám đốc toàn quyền tạo/sửa)
           </p>
         </div>
 
-        {Permissions.canManagePartners(currentUser.role) && (
+        {canManage && (
           <div className="flex items-center gap-2">
             {activeTab === 'SUPPLIERS' ? (
               <button
@@ -177,17 +241,19 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
                 Thêm Nhà cung cấp
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setCusCode(`KH-${String(customers.length + 1).padStart(2, '0')}`);
-                  setShowAddCustomerModal(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                Thêm Khách hàng
-              </button>
+              canViewCust && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCusCode(`KH-${String(customers.length + 1).padStart(2, '0')}`);
+                    setShowAddCustomerModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Thêm Khách hàng
+                </button>
+              )
             )}
           </div>
         )}
@@ -207,17 +273,20 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
           >
             Nhà cung cấp NVL ({suppliers.length})
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('CUSTOMERS')}
-            className={`px-3 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'CUSTOMERS'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Khách hàng thu mua ({customers.length})
-          </button>
+
+          {canViewCust && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('CUSTOMERS')}
+              className={`px-3 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
+                activeTab === 'CUSTOMERS'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Khách hàng thu mua ({customers.length})
+            </button>
+          )}
         </div>
 
         <div className="relative w-full sm:w-64">
@@ -238,6 +307,8 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
           {filteredSuppliers.map((sup) => {
             const partnerPurchases = purchases.filter((p) => p.supplierId === sup.id);
             const totalKg = partnerPurchases.reduce((sum, p) => sum + (p.weighedQuantityKg || 0), 0);
+            const totalPaid = partnerPurchases.reduce((sum, p) => sum + (p.totalAmountVnd || 0), 0);
+
             return (
               <div
                 key={sup.id}
@@ -268,9 +339,19 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
                     </div>
                   </div>
 
-                  <div className="mt-3 p-2 rounded-lg bg-slate-50 text-[11px] flex items-center justify-between text-slate-600">
-                    <span>Đã cung ứng:</span>
-                    <span className="font-bold text-indigo-700">{totalKg.toLocaleString('vi-VN')} kg ({partnerPurchases.length} chuyến)</span>
+                  <div className="mt-3 p-2.5 rounded-lg bg-slate-50 text-[11px] space-y-1 text-slate-600 border border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <span>Mặt hàng cung cấp:</span>
+                      <span className="font-semibold text-slate-800">Nguyên vật liệu</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Tổng khối lượng đã mua:</span>
+                      <span className="font-bold text-indigo-700">{formatNumberVN(totalKg)} kg</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Tổng giá trị giao dịch:</span>
+                      <span className="font-bold text-slate-900">{formatVND(totalPaid)}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -281,18 +362,32 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
                     className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    <span>Lịch sử giao dịch</span>
+                    <span>Lịch sử thu mua</span>
                   </button>
 
-                  {Permissions.canManagePartners(currentUser.role) && (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit('SUPPLIER', sup)}
-                      className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                      title="Sửa thông tin"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
+                  {canManage && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit('SUPPLIER', sup)}
+                        className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        title="Chỉnh sửa thông tin"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDeactivate('SUPPLIER', sup)}
+                        className={`p-1 rounded-md cursor-pointer transition-colors ${
+                          sup.status === 'ACTIVE'
+                            ? 'text-rose-400 hover:text-rose-700 hover:bg-rose-50'
+                            : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                        title={sup.status === 'ACTIVE' ? 'Ngừng sử dụng NCC' : 'Kích hoạt lại NCC'}
+                      >
+                        <Power className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -302,13 +397,16 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
       )}
 
       {/* TAB 2: CUSTOMERS */}
-      {activeTab === 'CUSTOMERS' && (
+      {activeTab === 'CUSTOMERS' && canViewCust && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCustomers.map((cus) => {
             const partnerOutbounds = outboundProposals.filter((o) => o.customerId === cus.id);
+            const partnerInvoices = invoices.filter((i) => i.customerId === cus.id);
             const totalDispatchedKg = partnerOutbounds
               .filter((o) => o.isDispatched)
               .reduce((sum, o) => sum + (o.requestedQuantityKg || 0), 0);
+            const totalReceivable = partnerInvoices.reduce((sum, i) => sum + i.remainingAmountVnd, 0);
+            const totalRevenue = partnerInvoices.reduce((sum, i) => sum + i.totalAmountVnd, 0);
 
             return (
               <div
@@ -323,7 +421,7 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
                     <StatusBadge status={cus.status} size="sm" />
                   </div>
 
-                  <h3 className="font-bold text-sm text-slate-900 mb-1 leading-snug">{cus.name}</h3>
+                  <h3 className="font-bold text-sm text-slate-900 mb-1 leading-snug line-clamp-2">{cus.name}</h3>
 
                   <div className="space-y-1.5 text-xs text-slate-600 mt-3 pt-3 border-t border-slate-100">
                     <div className="flex items-start gap-2">
@@ -340,15 +438,21 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
                     </div>
                   </div>
 
-                  {cus.paymentTerms && (
-                    <div className="mt-2 text-[11px] text-slate-500 italic">
-                      ĐK: {cus.paymentTerms}
+                  <div className="mt-3 p-2.5 rounded-lg bg-slate-50 text-[11px] space-y-1 text-slate-600 border border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <span>Đã xuất xưởng:</span>
+                      <span className="font-bold text-indigo-700">{formatNumberVN(totalDispatchedKg)} kg</span>
                     </div>
-                  )}
-
-                  <div className="mt-3 p-2 rounded-lg bg-emerald-50/60 text-[11px] flex items-center justify-between text-emerald-900">
-                    <span>Đã xuất xưởng:</span>
-                    <span className="font-bold">{totalDispatchedKg.toLocaleString('vi-VN')} kg ({partnerOutbounds.length} đơn)</span>
+                    <div className="flex items-center justify-between">
+                      <span>Tổng doanh số:</span>
+                      <span className="font-semibold text-slate-800">{formatVND(totalRevenue)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Công nợ còn lại:</span>
+                      <span className={`font-bold ${totalReceivable > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                        {formatVND(totalReceivable)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -359,18 +463,32 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
                     className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    <span>Lịch sử mua hàng</span>
+                    <span>Lịch sử xuất hàng</span>
                   </button>
 
-                  {Permissions.canManagePartners(currentUser.role) && (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit('CUSTOMER', cus)}
-                      className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                      title="Sửa thông tin"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
+                  {canManage && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit('CUSTOMER', cus)}
+                        className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        title="Chỉnh sửa thông tin"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDeactivate('CUSTOMER', cus)}
+                        className={`p-1 rounded-md cursor-pointer transition-colors ${
+                          cus.status === 'ACTIVE'
+                            ? 'text-rose-400 hover:text-rose-700 hover:bg-rose-50'
+                            : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                        title={cus.status === 'ACTIVE' ? 'Ngừng sử dụng KH' : 'Kích hoạt lại KH'}
+                      >
+                        <Power className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -382,107 +500,150 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
       {/* DETAIL MODAL WITH TRANSACTION HISTORY */}
       {detailPartner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[85vh] overflow-y-auto animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700 font-mono font-bold text-xs">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 mr-2">
                   {detailPartner.data.code}
                 </span>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">{detailPartner.data.name}</h3>
-                  <p className="text-[11px] text-slate-500">
-                    {detailPartner.type === 'SUPPLIER' ? 'Lịch sử Cung ứng Nguyên vật liệu' : 'Lịch sử Thu mua & Đơn hàng'}
-                  </p>
-                </div>
+                <span className="font-bold text-slate-900 text-base">{detailPartner.data.name}</span>
               </div>
               <button
+                type="button"
                 onClick={() => setDetailPartner(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
-              {/* Partner Overview Info */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-3">
+            <div className="p-6 overflow-y-auto space-y-5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div>
-                  <span className="text-slate-400 block">Đại diện liên hệ:</span>
-                  <span className="font-semibold text-slate-800">{detailPartner.data.contactPerson}</span>
+                  <span className="text-slate-400 block mb-0.5">Người liên hệ:</span>
+                  <span className="font-bold text-slate-800 text-sm">{detailPartner.data.contactPerson}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Điện thoại:</span>
-                  <span className="font-semibold text-slate-800">{detailPartner.data.phone}</span>
+                  <span className="text-slate-400 block mb-0.5">Số điện thoại:</span>
+                  <span className="font-bold text-slate-800 text-sm">{detailPartner.data.phone}</span>
                 </div>
-                <div className="col-span-2">
-                  <span className="text-slate-400 block">Địa chỉ:</span>
-                  <span className="text-slate-700">{detailPartner.data.address}</span>
+                <div className="sm:col-span-2">
+                  <span className="text-slate-400 block mb-0.5">Địa chỉ trụ sở / Xưởng:</span>
+                  <span className="font-medium text-slate-700">{detailPartner.data.address}</span>
                 </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Trạng thái:</span>
+                  <StatusBadge status={detailPartner.data.status} size="sm" />
+                </div>
+                {detailPartner.type === 'CUSTOMER' && (
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Điều khoản thanh toán:</span>
+                    <span className="font-semibold text-slate-800">
+                      {(detailPartner.data as Customer).paymentTerms || 'Chuyển khoản đối soát'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Transactions List */}
-              <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] pt-2">
-                {detailPartner.type === 'SUPPLIER' ? 'Các lô hàng cung ứng gần nhất' : 'Các đơn xuất hàng gần nhất'}
-              </h4>
-
               {detailPartner.type === 'SUPPLIER' ? (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                  {purchases.filter((p) => p.supplierId === detailPartner.data.id).length === 0 ? (
-                    <div className="p-6 text-center text-slate-400">Chưa có giao dịch cung ứng nào</div>
-                  ) : (
-                    purchases
-                      .filter((p) => p.supplierId === detailPartner.data.id)
-                      .map((p) => (
-                        <div key={p.id} className="p-3 hover:bg-slate-50 flex items-center justify-between">
-                          <div>
-                            <span className="font-mono font-bold text-indigo-700 block">{p.code}</span>
-                            <span className="text-[11px] text-slate-500">
-                              Ngày cân: {p.plannedDate} • NVL: {p.rawMaterialType}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="font-bold text-slate-900 block">
-                              {(p.weighedQuantityKg || p.plannedQuantityKg).toLocaleString('vi-VN')} kg
-                            </span>
-                            <StatusBadge status={p.status} size="sm" />
-                          </div>
-                        </div>
-                      ))
-                  )}
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-1.5">
+                    <History className="w-4 h-4 text-indigo-600" />
+                    Lịch sử các phiếu thu mua nguyên vật liệu ({purchases.filter((p) => p.supplierId === detailPartner.data.id).length})
+                  </h4>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-[10px]">
+                        <tr>
+                          <th className="py-2.5 px-3">Mã phiếu</th>
+                          <th className="py-2.5 px-3">Ngày giao việc</th>
+                          <th className="py-2.5 px-3 text-right">Khối lượng cân</th>
+                          <th className="py-2.5 px-3 text-right">Đơn giá</th>
+                          <th className="py-2.5 px-3 text-right">Thành tiền</th>
+                          <th className="py-2.5 px-3">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {purchases
+                          .filter((p) => p.supplierId === detailPartner.data.id)
+                          .map((p) => (
+                            <tr key={p.id}>
+                              <td className="py-2.5 px-3 font-mono font-bold text-slate-800">{p.code}</td>
+                              <td className="py-2.5 px-3">{p.plannedDate}</td>
+                              <td className="py-2.5 px-3 text-right font-semibold">
+                                {p.weighedQuantityKg ? `${formatNumberVN(p.weighedQuantityKg)} kg` : '—'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                {p.unitPriceVnd ? `${formatNumberVN(p.unitPriceVnd)} đ/kg` : '—'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                                {p.totalAmountVnd ? formatVND(p.totalAmountVnd) : '—'}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <StatusBadge status={p.status} size="sm" />
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                  {outboundProposals.filter((o) => o.customerId === detailPartner.data.id).length === 0 ? (
-                    <div className="p-6 text-center text-slate-400">Chưa có đơn xuất hàng nào</div>
-                  ) : (
-                    outboundProposals
-                      .filter((o) => o.customerId === detailPartner.data.id)
-                      .map((o) => (
-                        <div key={o.id} className="p-3 hover:bg-slate-50 flex items-center justify-between">
-                          <div>
-                            <span className="font-mono font-bold text-indigo-700 block">{o.code}</span>
-                            <span className="text-[11px] text-slate-500">
-                              Lô: {o.lotCode} • Đơn giá: {o.unitPriceVnd ? `${o.unitPriceVnd.toLocaleString('vi-VN')} đ` : 'Chưa chốt'}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="font-bold text-slate-900 block">
-                              {o.requestedQuantityKg.toLocaleString('vi-VN')} kg
-                            </span>
-                            <StatusBadge status={o.status} size="sm" />
-                          </div>
-                        </div>
-                      ))
-                  )}
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-1.5">
+                    <History className="w-4 h-4 text-indigo-600" />
+                    Lịch sử các đề xuất xuất hàng & Hóa đơn ({outboundProposals.filter((o) => o.customerId === detailPartner.data.id).length})
+                  </h4>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-[10px]">
+                        <tr>
+                          <th className="py-2.5 px-3">Mã đề xuất</th>
+                          <th className="py-2.5 px-3">Kho xuất</th>
+                          <th className="py-2.5 px-3 text-right">Khối lượng</th>
+                          <th className="py-2.5 px-3 text-right">Đơn giá bán</th>
+                          <th className="py-2.5 px-3 text-right">Tổng giá trị</th>
+                          <th className="py-2.5 px-3">Trạng thái xuất</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {outboundProposals
+                          .filter((o) => o.customerId === detailPartner.data.id)
+                          .map((o) => (
+                            <tr key={o.id}>
+                              <td className="py-2.5 px-3 font-mono font-bold text-slate-800">{o.code}</td>
+                              <td className="py-2.5 px-3">
+                                <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 text-slate-700">
+                                  {o.sourceWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-semibold">
+                                {formatNumberVN(o.requestedQuantityKg)} kg
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                {o.unitPriceVnd ? `${formatNumberVN(o.unitPriceVnd)} đ/kg` : '—'}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                                {o.unitPriceVnd ? formatVND(o.requestedQuantityKg * o.unitPriceVnd) : '—'}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <StatusBadge status={o.status} size="sm" />
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex justify-end">
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
               <button
                 type="button"
                 onClick={() => setDetailPartner(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold cursor-pointer"
               >
                 Đóng
               </button>
@@ -491,114 +652,14 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
         </div>
       )}
 
-      {/* EDIT PARTNER MODAL */}
-      {editPartner && (
+      {/* ADD SUPPLIER MODAL (Owner Only) */}
+      {showAddSupplierModal && canManage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
-              <h3 className="font-bold text-slate-900 text-sm">
-                Chỉnh sửa Thông tin {editPartner.type === 'SUPPLIER' ? 'Nhà cung cấp' : 'Khách hàng'}
-              </h3>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-base">Thêm Nhà cung cấp Nguyên vật liệu</h3>
               <button
-                onClick={() => setEditPartner(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Tên {editPartner.type === 'SUPPLIER' ? 'Nhà cung cấp' : 'Doanh nghiệp'} <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full text-xs font-semibold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Người đại diện liên hệ
-                  </label>
-                  <input
-                    type="text"
-                    value={editContact}
-                    onChange={(e) => setEditContact(e.target.value)}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Số điện thoại
-                  </label>
-                  <input
-                    type="text"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Địa chỉ
-                </label>
-                <input
-                  type="text"
-                  value={editAddress}
-                  onChange={(e) => setEditAddress(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                />
-              </div>
-
-              {editPartner.type === 'CUSTOMER' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Điều khoản thương mại &amp; thanh toán
-                  </label>
-                  <input
-                    type="text"
-                    value={editExtra}
-                    onChange={(e) => setEditExtra(e.target.value)}
-                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2.5 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setEditPartner(null)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs cursor-pointer"
-                >
-                  Lưu thay đổi
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ADD SUPPLIER MODAL */}
-      {showAddSupplierModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
-              <h3 className="font-bold text-slate-900 text-sm">Thêm Nhà Cung cấp Mới</h3>
-              <button
+                type="button"
                 onClick={() => setShowAddSupplierModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -609,82 +670,94 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
             <form onSubmit={handleAddSupplier} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Mã NCC <span className="text-rose-500">*</span>
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Mã NCC *</label>
                   <input
                     type="text"
                     value={supCode}
-                    onChange={(e) => setSupCode(e.target.value)}
-                    className="w-full text-xs font-mono font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    onChange={(e) => setSupCode(e.target.value.toUpperCase())}
+                    className="w-full text-xs font-mono border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Số điện thoại
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Mặt hàng</label>
+                  <input
+                    type="text"
+                    value="Nguyên vật liệu"
+                    disabled
+                    className="w-full text-xs border border-slate-200 rounded-lg p-2.5 text-slate-500 bg-slate-100 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Tên Nhà cung cấp *</label>
+                <input
+                  type="text"
+                  value={supName}
+                  onChange={(e) => setSupName(e.target.value)}
+                  placeholder="Ví dụ: Công ty TNHH Lâm Nghiệp Hàm Thuận"
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Người liên hệ</label>
+                  <input
+                    type="text"
+                    value={supContact}
+                    onChange={(e) => setSupContact(e.target.value)}
+                    placeholder="Ông/Bà..."
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Số điện thoại</label>
                   <input
                     type="text"
                     value={supPhone}
                     onChange={(e) => setSupPhone(e.target.value)}
-                    placeholder="0252.xxx.xxxx"
+                    placeholder="09xx..."
                     className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Tên Nhà cung cấp <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={supName}
-                  onChange={(e) => setSupName(e.target.value)}
-                  placeholder="Công ty TNHH Lâm Nghiệp..."
-                  className="w-full text-xs font-semibold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Người đại diện / liên hệ
-                </label>
-                <input
-                  type="text"
-                  value={supContact}
-                  onChange={(e) => setSupContact(e.target.value)}
-                  placeholder="Ông/Bà..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Địa chỉ xưởng / nguồn hàng
-                </label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Địa chỉ</label>
                 <input
                   type="text"
                   value={supAddress}
                   onChange={(e) => setSupAddress(e.target.value)}
-                  placeholder="Huyện Hàm Thuận Bắc, Bình Thuận..."
+                  placeholder="KCN Hàm Kiệm, Huyện Hàm Thuận Nam, Bình Thuận"
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Ghi chú đối tác</label>
+                <textarea
+                  rows={2}
+                  value={supNotes}
+                  onChange={(e) => setSupNotes(e.target.value)}
+                  placeholder="Ghi chú về nguồn cung, năng lực giao hàng..."
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddSupplierModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs cursor-pointer shadow-xs"
                 >
                   Lưu Nhà cung cấp
                 </button>
@@ -694,13 +767,14 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
         </div>
       )}
 
-      {/* ADD CUSTOMER MODAL */}
-      {showAddCustomerModal && (
+      {/* ADD CUSTOMER MODAL (Owner Only) */}
+      {showAddCustomerModal && canManage && canViewCust && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
-              <h3 className="font-bold text-slate-900 text-sm">Thêm Khách Hàng Mới</h3>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-base">Thêm Khách hàng Thu mua</h3>
               <button
+                type="button"
                 onClick={() => setShowAddCustomerModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -711,96 +785,188 @@ export const PartnerView: React.FC<PartnerViewProps> = ({ currentUser }) => {
             <form onSubmit={handleAddCustomer} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Mã KH <span className="text-rose-500">*</span>
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Mã Khách hàng *</label>
                   <input
                     type="text"
                     value={cusCode}
-                    onChange={(e) => setCusCode(e.target.value)}
-                    className="w-full text-xs font-mono font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    onChange={(e) => setCusCode(e.target.value.toUpperCase())}
+                    className="w-full text-xs font-mono border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Số điện thoại
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Mặt hàng mua</label>
+                  <input
+                    type="text"
+                    value="Viên nén gỗ"
+                    disabled
+                    className="w-full text-xs border border-slate-200 rounded-lg p-2.5 text-slate-500 bg-slate-100 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Tên Doanh nghiệp / Khách hàng *</label>
+                <input
+                  type="text"
+                  value={cusName}
+                  onChange={(e) => setCusName(e.target.value)}
+                  placeholder="Ví dụ: Công ty Cổ phần Năng lượng Xanh Châu Á"
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Người đại diện / Liên hệ</label>
+                  <input
+                    type="text"
+                    value={cusContact}
+                    onChange={(e) => setCusContact(e.target.value)}
+                    placeholder="Ông/Bà..."
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Số điện thoại</label>
                   <input
                     type="text"
                     value={cusPhone}
                     onChange={(e) => setCusPhone(e.target.value)}
+                    placeholder="09xx..."
                     className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Tên Khách hàng / Doanh nghiệp <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={cusName}
-                  onChange={(e) => setCusName(e.target.value)}
-                  placeholder="Sumitomo, Doosan, Nhiệt điện..."
-                  className="w-full text-xs font-semibold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Người phụ trách hợp đồng
-                </label>
-                <input
-                  type="text"
-                  value={cusContact}
-                  onChange={(e) => setCusContact(e.target.value)}
-                  placeholder="Mr. Sato / Bà Nguyễn..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Địa chỉ cảng nhận / trụ sở
-                </label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Địa chỉ giao dịch</label>
                 <input
                   type="text"
                   value={cusAddress}
                   onChange={(e) => setCusAddress(e.target.value)}
-                  placeholder="Cảng Cái Mép, Vũng Tàu..."
+                  placeholder="Quận 1, TP. Hồ Chí Minh"
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Điều khoản thanh toán & giao hàng
-                </label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Điều khoản thanh toán</label>
                 <input
                   type="text"
                   value={cusPayment}
                   onChange={(e) => setCusPayment(e.target.value)}
-                  placeholder="LC At Sight, T/T..."
+                  placeholder="Ví dụ: T/T 30 ngày sau khi nhận hàng"
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3">
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddCustomerModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs cursor-pointer shadow-xs"
                 >
                   Lưu Khách hàng
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MODAL (Owner Only) */}
+      {editPartner && canManage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-base">
+                Chỉnh sửa: {editPartner.data.code} — {editPartner.type === 'SUPPLIER' ? 'Nhà cung cấp' : 'Khách hàng'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditPartner(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Tên đối tác *</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Người liên hệ</label>
+                  <input
+                    type="text"
+                    value={editContact}
+                    onChange={(e) => setEditContact(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Số điện thoại</label>
+                  <input
+                    type="text"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Địa chỉ</label>
+                <input
+                  type="text"
+                  value={editAddress}
+                  onChange={(e) => setEditAddress(e.target.value)}
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  {editPartner.type === 'SUPPLIER' ? 'Ghi chú nhà cung cấp' : 'Điều khoản thanh toán'}
+                </label>
+                <input
+                  type="text"
+                  value={editExtra}
+                  onChange={(e) => setEditExtra(e.target.value)}
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditPartner(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs cursor-pointer shadow-xs"
+                >
+                  Lưu thay đổi
                 </button>
               </div>
             </form>

@@ -7,6 +7,7 @@ import { StatusBadge } from '../common/StatusBadge';
 import { EvidenceUpload } from '../common/EvidenceUpload';
 import { EvidenceViewerModal } from '../common/EvidenceViewerModal';
 import { showToast } from '../common/Toast';
+import { formatNumberVN } from '../../utils/formatters';
 
 interface QualityControlViewProps {
   currentUser: User;
@@ -68,7 +69,7 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
       showToast(
         'success',
         'Ghi kết quả QC thành công',
-        `Đã lưu kết quả kiểm tra lần ${selectedLot.tests.length + 1}/3 cho ${selectedLot.lotCode}`
+        `Đã lưu kết quả kiểm tra lần ${selectedLot.tests.length + 1}/3 cho lô ${selectedLot.lotCode}`
       );
       setShowTestModal(false);
       setSelectedLot(null);
@@ -99,7 +100,7 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Kiểm tra Chất lượng (KCS / QC)</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Mỗi lô hàng (LOT) phải thực hiện 3 lần kiểm tra độc lập để xác định phân hạng Grade A / Grade B
+            Mỗi lô hàng (LOT) phải thực hiện đúng 3 lần kiểm tra độc lập để xác định phân loại vào Kho A hoặc Kho B
           </p>
         </div>
       </div>
@@ -126,8 +127,8 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-sm text-slate-900">{lot.productName}</h3>
                       {lot.targetWarehouse && (
-                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
-                          {lot.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'}
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}`}>
+                          {lot.targetWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'}
                         </span>
                       )}
                     </div>
@@ -136,7 +137,7 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                       <span>•</span>
                       <span>{lot.jumboBagsCount} bao Jumbo</span>
                       <span>•</span>
-                      <span>Khối lượng: {lot.quantityKg.toLocaleString('vi-VN')} kg</span>
+                      <span>Khối lượng: {formatNumberVN(lot.quantityKg)} kg</span>
                     </div>
                   </div>
                 </div>
@@ -148,7 +149,7 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                       {testCount}/3 lần kiểm tra
                     </span>
                   </div>
-                  <StatusBadge status={lot.qcStatus} />
+                  <StatusBadge status={lot.qcStatus} context="QC" />
                 </div>
               </div>
 
@@ -159,74 +160,69 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                   return (
                     <div
                       key={num}
-                      className={`p-3.5 rounded-xl border text-xs transition-colors ${
+                      className={`p-3.5 rounded-xl border text-xs transition-all ${
                         test
                           ? 'bg-slate-50/70 border-slate-200'
-                          : 'bg-slate-50/20 border-dashed border-slate-200 text-slate-400'
+                          : 'bg-dashed border-slate-200 bg-slate-50/20 flex flex-col items-center justify-center min-h-[140px]'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-slate-800">Kiểm tra Lần {num}</span>
-                        {test ? (
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {new Date(test.testedAt).toLocaleTimeString('vi-VN', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-400">Chưa đo</span>
-                        )}
-                      </div>
-
                       {test ? (
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Độ ẩm:</span>
-                            <span
-                              className={`font-bold ${
-                                test.moisturePercent > 10 ? 'text-amber-600' : 'text-emerald-700'
-                              }`}
-                            >
-                              {test.moisturePercent}%
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                            <span className="font-bold text-slate-800">Lần đo {num}/3</span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {new Date(test.testedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Độ tro:</span>
-                            <span
-                              className={`font-bold ${
-                                test.ashPercent > 0.8 ? 'text-blue-700' : 'text-emerald-700'
-                              }`}
-                            >
-                              {test.ashPercent}%
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Tạp chất:</span>
-                            <span className="font-semibold text-slate-700">{test.impuritiesPercent}%</span>
-                          </div>
-                          {test.calorificValueKcalKg && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-500">Nhiệt trị:</span>
-                              <span className="font-semibold text-slate-700">
-                                {test.calorificValueKcalKg} kcal/kg
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Độ ẩm:</span>
+                              <span className={`font-bold ${test.moisturePercent > 10 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                                {test.moisturePercent}%
                               </span>
                             </div>
-                          )}
-                          <p className="text-[11px] text-slate-400 truncate mt-1">KCS: {test.testedByName}</p>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Độ tro:</span>
+                              <span className="font-semibold text-slate-800">{test.ashPercent}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Tạp chất:</span>
+                              <span className="font-semibold text-slate-800">{test.impuritiesPercent}%</span>
+                            </div>
+                            {test.calorificValueKcalKg && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Nhiệt trị:</span>
+                                <span className="font-semibold text-indigo-700">{test.calorificValueKcalKg} kcal/kg</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-400">
+                            <span>KCS: {test.testedByName}</span>
+                            {test.imageUrl && (
+                              <button
+                                type="button"
+                                onClick={() => handleViewLotEvidence(lot)}
+                                className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                              >
+                                Xem ảnh mẫu
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ) : (
-                        <div className="py-5 text-center text-slate-400 text-xs">
-                          {num === testCount + 1 && canAddTest ? (
+                        <div className="text-center">
+                          <span className="text-slate-400 block mb-1">Chưa có kết quả lần {num}</span>
+                          {canAddTest && num === testCount + 1 && (
                             <button
                               type="button"
                               onClick={() => handleOpenAddTest(lot)}
-                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
+                              className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors shadow-xs cursor-pointer"
                             >
+                              <Plus className="w-3.5 h-3.5" />
                               Đo mẫu lần {num}
                             </button>
-                          ) : (
-                            <span>Chờ hoàn thành lần trước</span>
                           )}
                         </div>
                       )}
@@ -235,47 +231,45 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                 })}
               </div>
 
-              {/* Action Buttons & Evidence footer */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
+              {/* Bottom Evaluation Banner when 3/3 done */}
+              {lot.qcStatus === 'QC_COMPLETED' && (
+                <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-emerald-900 font-medium">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Đã hoàn thành đầy đủ 3/3 lần kiểm tra. Phân loại chỉ định: <strong>{lot.targetWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'}</strong>.
+                      {!lot.isReceivedInWarehouse && ' Chờ Thủ kho kiểm đếm và nhận vào kho.'}
+                    </span>
+                  </div>
                   {lot.tests.some((t) => t.imageUrl) && (
                     <button
                       type="button"
                       onClick={() => handleViewLotEvidence(lot)}
-                      className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                      className="text-xs font-semibold text-emerald-800 underline hover:text-emerald-950 shrink-0 cursor-pointer"
                     >
-                      <ImageIcon className="w-4 h-4" />
-                      Xem ảnh chụp mẫu đo
+                      Xem toàn bộ ảnh mẫu kiểm tra
                     </button>
                   )}
                 </div>
-
-                {lot.isReceivedInWarehouse ? (
-                  <span className="text-teal-700 font-semibold flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Đã nhập kho thành phẩm ({lot.availableQuantityKg.toLocaleString('vi-VN')} kg khả dụng)
-                  </span>
-                ) : (
-                  <span className="text-slate-400 italic">Chưa nhập kho thành phẩm</span>
-                )}
-              </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* QC TEST MODAL (QC Staff) */}
+      {/* QC TEST MODAL */}
       {showTestModal && selectedLot && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">
-                  Ghi nhận Kết quả Kiểm tra KCS (Lần {selectedLot.tests.length + 1}/3)
+                  Ghi nhận Kết quả Kiểm tra QC — Lần {selectedLot.tests.length + 1}/3
                 </h3>
-                <p className="text-xs text-slate-500 font-mono">Lô hàng: {selectedLot.lotCode}</p>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">Lô hàng: {selectedLot.lotCode}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowTestModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -284,7 +278,7 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
             </div>
 
             <form onSubmit={handleSubmitTest} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Độ ẩm (%) <span className="text-rose-500">*</span>
@@ -292,14 +286,12 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                   <input
                     type="number"
                     step="0.1"
-                    min="1"
-                    max="50"
                     value={moisturePercent}
                     onChange={(e) => setMoisturePercent(Number(e.target.value))}
-                    className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                     required
                   />
-                  <span className="text-[11px] text-slate-400 mt-1 block">Chuẩn ENplus: 6% - 10%</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Chuẩn: 6% - 10%</span>
                 </div>
 
                 <div>
@@ -309,18 +301,16 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
-                    max="10"
                     value={ashPercent}
                     onChange={(e) => setAshPercent(Number(e.target.value))}
-                    className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                     required
                   />
-                  <span className="text-[11px] text-slate-400 mt-1 block">Grade A &le; 0.8% • Grade B &le; 1.5%</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Chuẩn Kho A: ≤ 0.7%</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Tạp chất (%) <span className="text-rose-500">*</span>
@@ -328,11 +318,9 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
-                    max="5"
                     value={impuritiesPercent}
                     onChange={(e) => setImpuritiesPercent(Number(e.target.value))}
-                    className="w-full text-sm border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                     required
                   />
                 </div>
@@ -343,49 +331,47 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                   </label>
                   <input
                     type="number"
-                    min="1000"
-                    max="6000"
                     value={calorificValueKcalKg}
                     onChange={(e) => setCalorificValueKcalKg(Number(e.target.value))}
-                    className="w-full text-sm border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               <EvidenceUpload
-                label="Ảnh thiết bị đo / mẫu viên nén"
-                value={imageUrl}
-                onChange={setImageUrl}
+                label="Ảnh chụp mẫu đo phòng thí nghiệm / ẩm kế"
+                currentImageUrl={imageUrl}
+                onImageSelected={setImageUrl}
               />
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Ghi chú cảm quan
+                  Ghi chú kiểm tra
                 </label>
                 <textarea
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Mẫu viên bóng, không nứt gãy, màu sáng..."
+                  placeholder="Ghi chú màu sắc viên, độ nén, vết nứt bề mặt..."
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                 />
               </div>
 
               {error && <p className="text-xs text-rose-600 font-medium">{error}</p>}
 
-              <div className="flex items-center justify-end gap-2.5 pt-3">
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowTestModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs cursor-pointer shadow-xs"
                 >
-                  Lưu kết quả QC lần {selectedLot.tests.length + 1}
+                  Lưu kết quả đo lần {selectedLot.tests.length + 1}
                 </button>
               </div>
             </form>
@@ -393,7 +379,7 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
         </div>
       )}
 
-      {/* Evidence Viewer */}
+      {/* EVIDENCE VIEWER MODAL */}
       <EvidenceViewerModal
         isOpen={showEvidence}
         images={evidenceImages}

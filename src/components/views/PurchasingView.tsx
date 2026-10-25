@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import {
   Plus,
   Search,
-  Filter,
   Eye,
-  Edit3,
   Calendar,
   Scale,
   FileText,
@@ -12,6 +10,8 @@ import {
   AlertCircle,
   X,
   History,
+  CheckCircle2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { User, PurchaseAssignment, PurchaseStatus } from '../../types';
 import { db } from '../../services/db';
@@ -24,6 +24,7 @@ import { EvidenceViewerModal } from '../common/EvidenceViewerModal';
 import { AuditHistoryModal } from '../common/AuditHistoryModal';
 import { Pagination } from '../common/Pagination';
 import { showToast } from '../common/Toast';
+import { formatVND, formatNumberVN } from '../../utils/formatters';
 
 interface PurchasingViewProps {
   currentUser: User;
@@ -32,7 +33,7 @@ interface PurchasingViewProps {
 export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) => {
   const snapshot = db.getSnapshot();
   const purchases = snapshot.purchases;
-  const suppliers = snapshot.suppliers;
+  const suppliers = snapshot.suppliers.filter((s) => s.status === 'ACTIVE');
   const users = snapshot.users;
 
   // Search & Filter
@@ -45,6 +46,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<PurchaseAssignment | null>(null);
   const [showRecordResultModal, setShowRecordResultModal] = useState(false);
+  const [detailPurchase, setDetailPurchase] = useState<PurchaseAssignment | null>(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
 
   // Evidence Viewer
@@ -66,7 +68,6 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
 
   // Create Form State
   const [supplierId, setSupplierId] = useState(suppliers[0]?.id || '');
-  const [rawMaterialType] = useState('Nguyên vật liệu');
   const [plannedQuantityKg, setPlannedQuantityKg] = useState<number>(20000);
   const [plannedDate, setPlannedDate] = useState(new Date().toISOString().split('T')[0]);
   const [assignedStaffId, setAssignedStaffId] = useState(
@@ -90,8 +91,6 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
       p.assignedStaffName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.rawMaterialType.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
-
-    // Purchasing staff sees all or their own
     return matchesSearch && matchesStatus;
   });
 
@@ -183,7 +182,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
       user: currentUser,
     });
     if (res.success) {
-      showToast('success', 'Đã phê duyệt', `${p.code} đã được duyệt và chuyển sang bước chờ thủ kho nhận`);
+      showToast('success', 'Đã phê duyệt', `Phiếu ${p.code} đã được duyệt và chuyển sang cho Thủ kho nhận hàng`);
     } else {
       showToast('error', 'Lỗi', res.error);
     }
@@ -198,7 +197,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
     });
   };
 
-  const handleSubmitReason = (reason: string) => {
+  const handleConfirmReason = (reason: string) => {
     const { actionType, targetId } = reasonModalConfig;
     const res = db.decidePurchaseApproval({
       assignmentId: targetId,
@@ -211,22 +210,24 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
       showToast(
         actionType === 'RETURN' ? 'warning' : 'error',
         actionType === 'RETURN' ? 'Đã trả lại hồ sơ' : 'Đã từ chối hồ sơ',
-        `Hồ sơ ${reasonModalConfig.entityCode} đã được cập nhật`
+        `Lý do: ${reason}`
       );
-      setReasonModalConfig({ isOpen: false, actionType: 'RETURN', targetId: '', entityCode: '' });
+      setReasonModalConfig({ ...reasonModalConfig, isOpen: false });
     } else {
       showToast('error', 'Lỗi', res.error);
     }
   };
 
   const handleViewEvidence = (p: PurchaseAssignment) => {
-    const imgs: { url: string; label?: string }[] = [];
-    if (p.scaleTicketImageUrl) imgs.push({ url: p.scaleTicketImageUrl, label: 'Phiếu cân điện tử' });
-    if (p.invoiceImageUrl) imgs.push({ url: p.invoiceImageUrl, label: 'Hóa đơn / Chứng từ' });
-    if (imgs.length > 0) {
-      setViewerImages(imgs);
-      setShowEvidenceViewer(true);
+    const images: { url: string; label?: string }[] = [];
+    if (p.scaleTicketImageUrl) {
+      images.push({ url: p.scaleTicketImageUrl, label: 'Phiếu cân xe điện tử' });
     }
+    if (p.invoiceImageUrl) {
+      images.push({ url: p.invoiceImageUrl, label: 'Hóa đơn / Bảng kê thu mua' });
+    }
+    setViewerImages(images);
+    setShowEvidenceViewer(true);
   };
 
   const handleViewAudit = (p: PurchaseAssignment) => {
@@ -236,12 +237,12 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
 
   return (
     <div className="space-y-6">
-      {/* Header & Controls */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Phân công Thu mua</h2>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Thu mua Nguyên vật liệu</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Quản lý kế hoạch mua, ghi nhận cân hàng thực tế và phê duyệt hồ sơ thu mua
+            Quy trình phân công thu mua, cân xe điện tử, ghi nhận hóa đơn chứng từ và duyệt tiếp nhận
           </p>
         </div>
 
@@ -284,12 +285,13 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
             className="text-xs border border-slate-300 rounded-lg px-2.5 py-2 text-slate-700 bg-white focus:outline-hidden focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">Tất cả trạng thái</option>
-            <option value="ASSIGNED">Đã phân công (ASSIGNED)</option>
-            <option value="SUBMITTED">Chờ phê duyệt (SUBMITTED)</option>
-            <option value="APPROVED">Đã phê duyệt (APPROVED)</option>
-            <option value="RETURNED">Bị trả lại (RETURNED)</option>
-            <option value="REJECTED">Từ chối (REJECTED)</option>
-            <option value="RECEIVED">Đã nhập kho (RECEIVED)</option>
+            <option value="ASSIGNED">Đã phân công</option>
+            <option value="SUBMITTED">Chờ duyệt</option>
+            <option value="APPROVED">Đã duyệt</option>
+            <option value="RETURNED">Đã trả lại</option>
+            <option value="REJECTED">Đã từ chối</option>
+            <option value="RECEIVED">Đã nhập kho</option>
+            <option value="REJECTED_BY_WAREHOUSE">Kho từ chối</option>
           </select>
         </div>
       </div>
@@ -302,7 +304,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
               <tr>
                 <th className="py-3 px-4">Mã phiếu</th>
                 <th className="py-3 px-4">Nhà cung cấp</th>
-                <th className="py-3 px-4">Nguyên vật liệu</th>
+                <th className="py-3 px-4">Mặt hàng</th>
                 <th className="py-3 px-4 text-right">Dự kiến</th>
                 <th className="py-3 px-4 text-right">Cân thực tế</th>
                 <th className="py-3 px-4">Nhân viên thu mua</th>
@@ -334,12 +336,12 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
                       <td className="py-3 px-4 font-medium text-slate-800 max-w-[200px] truncate">
                         {p.supplierName}
                       </td>
-                      <td className="py-3 px-4">{p.rawMaterialType}</td>
+                      <td className="py-3 px-4">Nguyên vật liệu</td>
                       <td className="py-3 px-4 text-right font-medium">
-                        {p.plannedQuantityKg.toLocaleString('vi-VN')} kg
+                        {formatNumberVN(p.plannedQuantityKg)} kg
                       </td>
                       <td className="py-3 px-4 text-right font-semibold text-slate-900">
-                        {p.weighedQuantityKg ? `${p.weighedQuantityKg.toLocaleString('vi-VN')} kg` : '—'}
+                        {p.weighedQuantityKg ? `${formatNumberVN(p.weighedQuantityKg)} kg` : '—'}
                       </td>
                       <td className="py-3 px-4">{p.assignedStaffName}</td>
                       <td className="py-3 px-4">
@@ -352,9 +354,28 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
                             Lý do: {p.returnReason}
                           </span>
                         )}
+                        {p.status === 'REJECTED_BY_WAREHOUSE' && p.warehouseRejectionReason && (
+                          <span
+                            className="block text-[10px] text-rose-700 truncate max-w-[150px] mt-0.5"
+                            title={p.warehouseRejectionReason}
+                          >
+                            Kho từ chối: {p.warehouseRejectionReason}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {/* Dedicated View Details Button */}
+                          <button
+                            type="button"
+                            onClick={() => setDetailPurchase(p)}
+                            className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                            title="Xem chi tiết phân công & ghi chú"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Chi tiết</span>
+                          </button>
+
                           {/* Record Result Button for Purchasing Staff */}
                           {canRecord && (
                             <button
@@ -415,6 +436,174 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
         />
       </div>
 
+      {/* DETAIL MODAL (Prominently shows Manager's Assignment Notes!) */}
+      {detailPurchase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-sm px-2.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {detailPurchase.code}
+                </span>
+                <h3 className="font-bold text-slate-900 text-base">Hồ sơ Chi tiết Thu mua</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailPurchase(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 text-xs">
+              {/* STATUS & SUPPLIER SUMMARY */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Nhà cung cấp:</span>
+                  <span className="font-bold text-slate-900 text-sm">{detailPurchase.supplierName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Trạng thái xử lý:</span>
+                  <StatusBadge status={detailPurchase.status} size="md" />
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Mặt hàng:</span>
+                  <span className="font-semibold text-slate-800">Nguyên vật liệu</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Nhân viên thu mua phụ trách:</span>
+                  <span className="font-semibold text-indigo-700">{detailPurchase.assignedStaffName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Người giao nhiệm vụ:</span>
+                  <span className="font-medium text-slate-700">{detailPurchase.createdByName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Ngày dự kiến thu mua:</span>
+                  <span className="font-medium text-slate-700">{detailPurchase.plannedDate}</span>
+                </div>
+              </div>
+
+              {/* MANDATORY: CREATOR ASSIGNMENT NOTES (Never overwritten, prominently displayed!) */}
+              <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200/90 text-amber-900">
+                <span className="font-bold text-xs uppercase tracking-wider block mb-1 text-amber-800 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  Ghi chú phân công của Lãnh đạo / Quản lý:
+                </span>
+                <p className="text-xs text-amber-950 font-medium leading-relaxed bg-white/60 p-2.5 rounded-lg border border-amber-200">
+                  {detailPurchase.assignmentNotes || 'Không có ghi chú phân công đặc biệt.'}
+                </p>
+              </div>
+
+              {/* ACTUAL PURCHASING RESULT */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  Kết quả Thu mua Thực tế
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3 bg-white rounded-lg border border-slate-100">
+                    <span className="text-slate-400 block mb-1">Khối lượng cân:</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {detailPurchase.weighedQuantityKg
+                        ? `${formatNumberVN(detailPurchase.weighedQuantityKg)} kg`
+                        : 'Chưa thực hiện'}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border border-slate-100">
+                    <span className="text-slate-400 block mb-1">Đơn giá thực tế:</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {detailPurchase.unitPriceVnd
+                        ? `${formatNumberVN(detailPurchase.unitPriceVnd)} đ/kg`
+                        : 'Chưa có đơn giá'}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border border-slate-100">
+                    <span className="text-slate-400 block mb-1">Tổng thành tiền:</span>
+                    <span className="font-bold text-indigo-700 text-sm">
+                      {detailPurchase.totalAmountVnd
+                        ? formatVND(detailPurchase.totalAmountVnd)
+                        : '—'}
+                    </span>
+                  </div>
+                </div>
+
+                {detailPurchase.purchasingResultNotes && (
+                  <div className="mt-2">
+                    <span className="text-slate-500 font-semibold block mb-0.5">
+                      Ghi chú của nhân viên thu mua:
+                    </span>
+                    <p className="p-2.5 bg-white rounded-lg border border-slate-200 text-slate-800">
+                      {detailPurchase.purchasingResultNotes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Evidence attachments */}
+                <div className="flex gap-2 pt-2">
+                  {detailPurchase.scaleTicketImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handleViewEvidence(detailPurchase)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold text-xs flex items-center gap-1.5 border border-indigo-200 cursor-pointer"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      Xem ảnh phiếu cân
+                    </button>
+                  )}
+                  {detailPurchase.invoiceImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handleViewEvidence(detailPurchase)}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs flex items-center gap-1.5 border border-emerald-200 cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Xem ảnh hóa đơn
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* APPROVAL & WAREHOUSE INFORMATION */}
+              {(detailPurchase.approvalDecidedAt || detailPurchase.receivedAt) && (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                    Tiến độ Duyệt & Nhập kho
+                  </h4>
+                  {detailPurchase.approvalDecidedAt && (
+                    <div className="text-xs text-slate-600">
+                      <span>Người phê duyệt: </span>
+                      <strong className="text-slate-800">{detailPurchase.approvedByName}</strong>
+                      <span className="text-slate-400"> ({new Date(detailPurchase.approvalDecidedAt).toLocaleString('vi-VN')})</span>
+                    </div>
+                  )}
+                  {detailPurchase.receivedAt && (
+                    <div className="text-xs text-slate-600">
+                      <span>Thủ kho tiếp nhận: </span>
+                      <strong className="text-slate-800">{detailPurchase.receivedByName}</strong>
+                      <span> • Thực nhận: </span>
+                      <strong className="text-emerald-700">{formatNumberVN(detailPurchase.receivedQuantityKg)} kg</strong>
+                      <span className="text-slate-400"> ({new Date(detailPurchase.receivedAt).toLocaleString('vi-VN')})</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setDetailPurchase(null)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CREATE ASSIGNMENT MODAL (Owner / Manager) */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
@@ -450,15 +639,17 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Loại nguyên vật liệu
+                  Mặt hàng thu mua
                 </label>
-                <div className="w-full text-xs font-semibold border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-800 flex items-center justify-between">
-                  <span>Nguyên vật liệu (NVL)</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 font-mono">Chuẩn đầu vào</span>
-                </div>
+                <input
+                  type="text"
+                  value="Nguyên vật liệu"
+                  disabled
+                  className="w-full text-xs border border-slate-200 rounded-lg p-2.5 text-slate-500 bg-slate-100 cursor-not-allowed"
+                />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Khối lượng dự kiến (kg) <span className="text-rose-500">*</span>
@@ -466,6 +657,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
                   <input
                     type="number"
                     min="1"
+                    step="100"
                     value={plannedQuantityKg}
                     onChange={(e) => setPlannedQuantityKg(Number(e.target.value))}
                     className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
@@ -475,7 +667,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Ngày dự kiến cân <span className="text-rose-500">*</span>
+                    Ngày dự kiến <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -489,7 +681,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Nhân viên thu mua phụ trách <span className="text-rose-500">*</span>
+                  Phân công Nhân viên thu mua <span className="text-rose-500">*</span>
                 </label>
                 <select
                   value={assignedStaffId}
@@ -509,32 +701,32 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Ghi chú điều hành
+                  Ghi chú phân công của Lãnh đạo (Hiển thị cố định cho nhân viên)
                 </label>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={createNotes}
                   onChange={(e) => setCreateNotes(e.target.value)}
-                  placeholder="Ghi chú về địa điểm trạm cân, yêu cầu độ ẩm..."
+                  placeholder="Yêu cầu kiểm tra tạp chất, yêu cầu lấy hóa đơn VAT, thời gian giao hàng..."
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                 />
               </div>
 
               {formError && <p className="text-xs text-rose-600 font-medium">{formError}</p>}
 
-              <div className="flex items-center justify-end gap-2.5 pt-3">
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs cursor-pointer shadow-xs"
                 >
-                  Xác nhận Tạo phân công
+                  Xác nhận Phân công
                 </button>
               </div>
             </form>
@@ -542,14 +734,14 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* RECORD PURCHASE RESULT MODAL (Purchasing Staff) */}
+      {/* RECORD RESULT MODAL (Purchasing Staff) */}
       {showRecordResultModal && selectedPurchase && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Ghi Kết quả Thu mua Thực tế</h3>
-                <p className="text-xs text-slate-500 font-mono">Phiếu phân công: {selectedPurchase.code}</p>
+                <h3 className="font-bold text-slate-900 text-base">Ghi nhận Kết quả Thu mua Thực tế</h3>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">Hồ sơ: {selectedPurchase.code}</p>
               </div>
               <button
                 onClick={() => setShowRecordResultModal(false)}
@@ -559,46 +751,23 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
               </button>
             </div>
 
-            <form onSubmit={handleSubmitResult} className="p-6 space-y-4">
-              {/* Inherited Info (ReadOnly as required in 5.2) */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-400 block">Nhà cung cấp:</span>
-                  <span className="font-semibold text-slate-800">{selectedPurchase.supplierName}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Nguyên vật liệu:</span>
-                  <span className="font-semibold text-slate-800">{selectedPurchase.rawMaterialType}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Khối lượng dự kiến:</span>
-                  <span className="font-semibold text-slate-800">
-                    {selectedPurchase.plannedQuantityKg.toLocaleString('vi-VN')} kg
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Ngày dự kiến cân:</span>
-                  <span className="font-semibold text-slate-800">{selectedPurchase.plannedDate}</span>
-                </div>
-              </div>
-
-              {/* Creator's Assignment Notes Display */}
+            <form onSubmit={handleSubmitResult} className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Reminder of Creator notes */}
               {selectedPurchase.assignmentNotes && (
-                <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200/80 text-xs text-indigo-950">
-                  <span className="font-bold text-indigo-800 block mb-0.5">📌 Ghi chú chỉ đạo từ Cấp Quản lý:</span>
-                  <p className="italic">{selectedPurchase.assignmentNotes}</p>
+                <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 text-xs">
+                  <span className="font-bold block mb-1">Ghi chú giao việc từ Quản lý:</span>
+                  <p>{selectedPurchase.assignmentNotes}</p>
                 </div>
               )}
 
               {selectedPurchase.status === 'RETURNED' && selectedPurchase.returnReason && (
-                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                  <span className="font-bold">⚠️ Lý do bị trả lại trước đó: </span>
-                  {selectedPurchase.returnReason}
+                <div className="p-3 bg-orange-50 rounded-lg border border-orange-200 text-orange-900 text-xs">
+                  <span className="font-bold block mb-1">Lý do trả lại cần khắc phục:</span>
+                  <p>{selectedPurchase.returnReason}</p>
                 </div>
               )}
 
-              {/* Editable Actuals */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Khối lượng cân thực tế (kg) <span className="text-rose-500">*</span>
@@ -606,78 +775,81 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
                   <input
                     type="number"
                     min="1"
+                    step="10"
                     value={weighedQuantityKg}
                     onChange={(e) => setWeighedQuantityKg(Number(e.target.value))}
-                    className="w-full text-sm border border-slate-300 rounded-lg p-2.5 text-slate-800 font-semibold focus:outline-hidden focus:border-indigo-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                     required
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Đơn giá mua (VND/kg) <span className="text-rose-500">*</span>
+                    Đơn giá (VNĐ/kg) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
                     min="1"
+                    step="10"
                     value={unitPriceVnd}
                     onChange={(e) => setUnitPriceVnd(Number(e.target.value))}
-                    className="w-full text-sm border border-slate-300 rounded-lg p-2.5 text-slate-800 font-semibold focus:outline-hidden focus:border-indigo-500"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                     required
                   />
                 </div>
               </div>
 
-              {/* Total Calculation Display */}
-              <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
-                <span className="text-xs font-medium text-indigo-900">Tổng giá trị thanh toán tính toán:</span>
-                <span className="text-base font-bold text-indigo-950 font-mono">
-                  {(weighedQuantityKg * unitPriceVnd).toLocaleString('vi-VN')} VND
+              {/* Calculated total amount */}
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
+                <span className="text-xs text-slate-600 font-medium">Tổng thành tiền dự kiến:</span>
+                <span className="text-sm font-bold text-indigo-700">
+                  {formatVND(weighedQuantityKg * unitPriceVnd)}
                 </span>
               </div>
 
-              {/* Evidence Uploads */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div className="space-y-3">
                 <EvidenceUpload
-                  label="Phiếu cân xe điện tử"
-                  value={scaleTicketImageUrl}
-                  onChange={setScaleTicketImageUrl}
+                  label="Ảnh Phiếu cân xe điện tử (Trạm cân)"
+                  currentImageUrl={scaleTicketImageUrl}
+                  onImageSelected={setScaleTicketImageUrl}
+                  required
                 />
+
                 <EvidenceUpload
-                  label="Hóa đơn / Biên nhận"
-                  value={invoiceImageUrl}
-                  onChange={setInvoiceImageUrl}
+                  label="Ảnh Hóa đơn VAT / Bảng kê thu mua"
+                  currentImageUrl={invoiceImageUrl}
+                  onImageSelected={setInvoiceImageUrl}
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Ghi chú kết quả cân
+                  Ghi chú riêng của Nhân viên thu mua
                 </label>
                 <textarea
                   rows={2}
                   value={purchasingNotes}
                   onChange={(e) => setPurchasingNotes(e.target.value)}
-                  placeholder="Ghi chú số phiếu trạm cân, xe chở..."
+                  placeholder="Ghi nhận số phiếu cân, biển số xe chở hàng, tình trạng thực tế..."
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                 />
               </div>
 
               {formError && <p className="text-xs text-rose-600 font-medium">{formError}</p>}
 
-              <div className="flex items-center justify-end gap-2.5 pt-3">
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowRecordResultModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs cursor-pointer shadow-xs"
                 >
-                  Gửi duyệt kết quả thu mua
+                  Gửi duyệt kết quả
                 </button>
               </div>
             </form>
@@ -685,33 +857,30 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
         </div>
       )}
 
-      {/* Mandatory Reason Modal for Return or Reject */}
+      {/* REASON MODAL FOR RETURN / REJECT */}
       <ReasonModal
         isOpen={reasonModalConfig.isOpen}
-        title={reasonModalConfig.actionType === 'RETURN' ? 'Trả lại hồ sơ thu mua' : 'Từ chối hồ sơ thu mua'}
+        title={reasonModalConfig.actionType === 'RETURN' ? 'Trả lại hồ sơ yêu cầu sửa' : 'Từ chối phê duyệt hồ sơ'}
         actionType={reasonModalConfig.actionType}
-        entityName={reasonModalConfig.entityCode}
-        onClose={() =>
-          setReasonModalConfig({ isOpen: false, actionType: 'RETURN', targetId: '', entityCode: '' })
-        }
-        onSubmit={handleSubmitReason}
+        entityCode={reasonModalConfig.entityCode}
+        onConfirm={handleConfirmReason}
+        onClose={() => setReasonModalConfig({ ...reasonModalConfig, isOpen: false })}
       />
 
-      {/* Evidence Viewer */}
+      {/* EVIDENCE VIEWER MODAL */}
       <EvidenceViewerModal
         isOpen={showEvidenceViewer}
         images={viewerImages}
         onClose={() => setShowEvidenceViewer(false)}
       />
 
-      {/* Audit History Timeline Modal */}
+      {/* AUDIT HISTORY MODAL */}
       {selectedPurchase && (
         <AuditHistoryModal
           isOpen={showAuditModal}
+          entityType="PURCHASE_ASSIGNMENT"
+          entityId={selectedPurchase.id}
           entityCode={selectedPurchase.code}
-          logs={snapshot.auditLogs.filter(
-            (l) => l.entityId === selectedPurchase.id || l.entityCode === selectedPurchase.code
-          )}
           onClose={() => setShowAuditModal(false)}
         />
       )}

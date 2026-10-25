@@ -1,12 +1,15 @@
 import React from 'react';
 import { X, History, User, Clock } from 'lucide-react';
 import { AuditLog } from '../../types';
+import { db } from '../../services/db';
 
 interface AuditHistoryModalProps {
   isOpen: boolean;
   title?: string;
   entityCode?: string;
-  logs: AuditLog[];
+  entityType?: string;
+  entityId?: string;
+  logs?: AuditLog[];
   onClose: () => void;
 }
 
@@ -14,10 +17,18 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
   isOpen,
   title = 'Lịch sử xử lý & Kiểm toán',
   entityCode,
+  entityType: _entityType,
+  entityId,
   logs,
   onClose,
 }) => {
   if (!isOpen) return null;
+
+  const displayLogs = logs || db.getSnapshot().auditLogs.filter((a) => {
+    if (entityId && a.entityId === entityId) return true;
+    if (entityCode && a.entityCode === entityCode) return true;
+    return false;
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
@@ -43,11 +54,11 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
 
         {/* Timeline Content */}
         <div className="p-5 overflow-y-auto flex-1 space-y-4">
-          {logs.length === 0 ? (
+          {displayLogs.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-sm">Chưa có nhật ký ghi nhận</div>
           ) : (
             <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-              {logs.map((log) => (
+              {displayLogs.map((log) => (
                 <div key={log.id} className="relative group">
                   {/* Dot */}
                   <div className="absolute -left-6 top-1 w-4 h-4 rounded-full border-2 border-white bg-indigo-600 shadow-xs"></div>

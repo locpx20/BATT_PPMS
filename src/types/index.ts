@@ -383,7 +383,17 @@ export interface OutboundProposal {
 
 // WF-10 Machine Failure Reporting & WF-11 Maintenance
 export type FailureSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type FailureStatus = 'REPORTED' | 'ASSIGNED' | 'UNDER_REPAIR' | 'COMPLETED' | 'REJECTED';
+export type FailureStatus = 
+  | 'REPORTED' 
+  | 'ASSIGNED' 
+  | 'UNDER_REPAIR' 
+  | 'WAITING_SUPPLY' 
+  | 'WAITING_FOR_MATERIALS' 
+  | 'SUPPLYING' 
+  | 'ENOUGH_MATERIALS' 
+  | 'PENDING_CONFIRMATION' 
+  | 'COMPLETED' 
+  | 'REJECTED';
 
 export interface MachineFailureReport {
   id: string;

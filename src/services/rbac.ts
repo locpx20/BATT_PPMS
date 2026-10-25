@@ -112,7 +112,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
     key: 'partners',
     label: 'Đối tác Cung ứng & Khách hàng',
     icon: 'Building2',
-    allowedRoles: ['O', 'M'],
+    allowedRoles: ['O', 'M', 'PS'],
     group: 'CORE',
   },
   {
@@ -188,9 +188,13 @@ export const Permissions = {
   canProposeExpense: (role: RoleCode) => role === 'O' || role === 'M',
   canRecordMaterialPurchaseActual: (role: RoleCode) => role === 'MS' || role === 'M' || role === 'O',
 
-  // Master Data
+  // Master Data & Partners
   canManageMachines: (role: RoleCode) => role === 'O' || role === 'M',
-  canManagePartners: (role: RoleCode) => role === 'O' || role === 'M',
+  canManagePartners: (role: RoleCode) => role === 'O', // Owner exclusive!
+  canManageSuppliers: (role: RoleCode) => role === 'O', // Owner exclusive!
+  canManageCustomers: (role: RoleCode) => role === 'O', // Owner exclusive!
+  canViewSuppliers: (role: RoleCode) => role === 'O' || role === 'M' || role === 'PS',
+  canViewCustomers: (role: RoleCode) => role === 'O' || role === 'M', // PS cannot view customers!
 
   // Admin Isolation
   canManageUsers: (role: RoleCode) => role === 'A',

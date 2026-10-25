@@ -11,6 +11,7 @@ import {
   Clock,
   X,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 import {
   User,
@@ -25,6 +26,7 @@ import { StatusBadge } from '../common/StatusBadge';
 import { ReasonModal } from '../common/ReasonModal';
 import { EvidenceUpload } from '../common/EvidenceUpload';
 import { showToast } from '../common/Toast';
+import { formatVND, formatNumberVN } from '../../utils/formatters';
 
 interface MaintenanceViewProps {
   currentUser: User;
@@ -94,14 +96,14 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
   const [actualInvoiceNum, setActualInvoiceNum] = useState('');
   const [actualInvoiceImg, setActualInvoiceImg] = useState<string | undefined>();
 
-  // Reason modal for rejecting failure or material item
+  // Reason modal for rejecting failure or returning completion report
   const [reasonModal, setReasonModal] = useState<{
     isOpen: boolean;
     actionType: 'RETURN' | 'REJECT';
-    targetType: 'FAILURE' | 'MATERIAL_ITEM';
+    targetType: 'FAILURE' | 'MATERIAL_ITEM' | 'REPORT';
     requestId?: string;
     itemId?: string;
-    failureId?: string;
+    reportId?: string;
     entityCode: string;
   }>({
     isOpen: false,
@@ -228,7 +230,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
       showToast(
         'success',
         'Ghi nhận mua vật tư thành công',
-        `Đã tạo chi phí ${(actualPurchaseQty * actualUnitPrice).toLocaleString('vi-VN')} VND vào Sổ Tài chính`
+        `Đã tạo chi phí ${formatVND(actualPurchaseQty * actualUnitPrice)} vào Sổ Tài chính`
       );
       setPurchaseModal({
         isOpen: false,
@@ -278,7 +280,34 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
       user: currentUser,
     });
     if (res.success) {
-      showToast('success', 'Nghiệm thu thành công', `Thiết bị ${rep.machineName} đã trở lại trạng thái OPERATIONAL`);
+      showToast('success', 'Nghiệm thu thành công', `Thiết bị ${rep.machineName} đã trở lại trạng thái Đang hoạt động`);
+    }
+  };
+
+  const handleConfirmReason = (reason: string) => {
+    if (reasonModal.targetType === 'REPORT' && reasonModal.reportId) {
+      const res = db.approveMaintenanceCompletion({
+        reportId: reasonModal.reportId,
+        decision: 'RETURN',
+        returnReason: reason,
+        user: currentUser,
+      });
+      if (res.success) {
+        showToast('warning', 'Đã trả lại báo cáo', `Đã trả lại báo cáo cho Kỹ thuật viên khắc phục`);
+        setReasonModal({ ...reasonModal, isOpen: false });
+      }
+    } else if (reasonModal.targetType === 'MATERIAL_ITEM' && reasonModal.requestId && reasonModal.itemId) {
+      const res = db.decideMaterialItem({
+        requestId: reasonModal.requestId,
+        itemId: reasonModal.itemId,
+        decision: 'REJECT',
+        rejectionReason: reason,
+        user: currentUser,
+      });
+      if (res.success) {
+        showToast('error', 'Đã từ chối dòng vật tư', `Lý do: ${reason}`);
+        setReasonModal({ ...reasonModal, isOpen: false });
+      }
     }
   };
 
@@ -353,48 +382,50 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
               <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4">Mã sự cố</th>
-                  <th className="py-3 px-4">Thiết bị máy</th>
-                  <th className="py-3 px-4">Thời gian</th>
-                  <th className="py-3 px-4">Mức độ</th>
+                  <th className="py-3 px-4">Thiết bị</th>
                   <th className="py-3 px-4">Hiện tượng sự cố</th>
-                  <th className="py-3 px-4">Kỹ thuật viên phụ trách</th>
-                  <th className="py-3 px-4">Trạng thái</th>
+                  <th className="py-3 px-4">Mức độ</th>
+                  <th className="py-3 px-4">Người báo</th>
+                  <th className="py-3 px-4">Kỹ thuật viên</th>
+                  <th className="py-3 px-4">Trạng thái bảo trì</th>
                   <th className="py-3 px-4 text-center">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {failures.map((f) => {
                   const canAssign = f.status === 'REPORTED' && Permissions.canAssignMaintenance(currentUser.role);
-                  const isAssignedToMe = f.assignedMaintenanceStaffId === currentUser.id;
+                  // STRICT RULE: ONLY Maintenance Staff (MS) can submit material requests and completion reports!
+                  const isAssignedTech = currentUser.role === 'MS';
 
                   return (
                     <tr key={f.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">{f.code}</td>
                       <td className="py-3 px-4 font-semibold text-slate-800">{f.machineName}</td>
-                      <td className="py-3 px-4 text-slate-500">
-                        {new Date(f.failureTime).toLocaleString('vi-VN')}
+                      <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate" title={f.symptoms}>
+                        {f.symptoms}
                       </td>
                       <td className="py-3 px-4">
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            f.severity === 'CRITICAL' || f.severity === 'HIGH'
-                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            f.severity === 'CRITICAL'
+                              ? 'bg-rose-100 text-rose-800'
+                              : f.severity === 'HIGH'
+                              ? 'bg-orange-100 text-orange-800'
+                              : 'bg-amber-100 text-amber-800'
                           }`}
                         >
-                          {f.severity}
+                          {f.severity === 'CRITICAL' ? 'Nghiêm trọng' : f.severity === 'HIGH' ? 'Cao' : 'Trung bình'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 max-w-[240px] truncate" title={f.symptoms}>
-                        {f.symptoms}
+                      <td className="py-3 px-4">{f.reportedByName}</td>
+                      <td className="py-3 px-4 font-medium text-slate-800">
+                        {f.assignedMaintenanceStaffName || <span className="text-slate-400 italic">Chưa giao</span>}
                       </td>
-                      <td className="py-3 px-4">{f.assignedMaintenanceStaffName || 'Chưa phân công'}</td>
                       <td className="py-3 px-4">
-                        <StatusBadge status={f.status} size="sm" />
+                        <StatusBadge status={f.status} size="sm" context="MAINTENANCE" />
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          {/* Single Step: Tiếp nhận & Phân công */}
                           {canAssign && (
                             <button
                               type="button"
@@ -408,41 +439,40 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                             </button>
                           )}
 
-                          {/* Maintenance Staff actions on their assigned job */}
-                          {(currentUser.role === 'MS' || currentUser.role === 'M' || currentUser.role === 'O') &&
-                            (f.status === 'ASSIGNED' || f.status === 'UNDER_REPAIR') && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedFailure(f);
-                                    setMaterialItems([
-                                      { materialName: '', requestedQuantity: 1, unit: 'Cái', reason: '' },
-                                    ]);
-                                    setMatReqError('');
-                                    setShowMaterialRequestModal(true);
-                                  }}
-                                  className="px-2 py-1 rounded bg-amber-50 text-amber-800 hover:bg-amber-100 font-semibold text-[11px] cursor-pointer"
-                                >
-                                  + Đề xuất vật tư
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedFailure(f);
-                                    setRootCause('');
-                                    setActionsTaken('');
-                                    setMaterialsUsedText('');
-                                    setRepairResult('');
-                                    setCompletionError('');
-                                    setShowCompletionModal(true);
-                                  }}
-                                  className="px-2 py-1 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold text-[11px] cursor-pointer"
-                                >
-                                  Nộp BC xong
-                                </button>
-                              </>
-                            )}
+                          {/* STRICT PERMISSION: Only Maintenance Staff (MS) can submit material requests or completion reports! */}
+                          {isAssignedTech && (f.status === 'ASSIGNED' || f.status === 'UNDER_REPAIR' || f.status === 'ENOUGH_MATERIALS' || f.status === 'SUPPLYING' || f.status === 'WAITING_FOR_MATERIALS') && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedFailure(f);
+                                  setMaterialItems([
+                                    { materialName: '', requestedQuantity: 1, unit: 'Cái', reason: '' },
+                                  ]);
+                                  setMatReqError('');
+                                  setShowMaterialRequestModal(true);
+                                }}
+                                className="px-2 py-1 rounded bg-amber-50 text-amber-800 hover:bg-amber-100 font-semibold text-[11px] cursor-pointer"
+                              >
+                                + Đề xuất vật tư
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedFailure(f);
+                                  setRootCause('');
+                                  setActionsTaken('');
+                                  setMaterialsUsedText('');
+                                  setRepairResult('');
+                                  setCompletionError('');
+                                  setShowCompletionModal(true);
+                                }}
+                                className="px-2 py-1 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-semibold text-[11px] cursor-pointer"
+                              >
+                                Nộp báo cáo hoàn thành
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -466,7 +496,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                     <span className="font-semibold text-slate-800">{req.machineName}</span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Kỹ thuật viên: {req.maintenanceStaffName} • Ngày gửi:{' '}
+                    Kỹ thuật viên đề xuất: {req.maintenanceStaffName} • Ngày gửi:{' '}
                     {new Date(req.createdAt).toLocaleDateString('vi-VN')}
                   </p>
                 </div>
@@ -535,7 +565,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                             ) : item.status === 'APPROVED' ? (
                               item.isPurchased ? (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                  ✓ Đã mua ({item.actualPurchasedQuantity} {item.unit} - {((item.actualPurchasedQuantity || 0) * (item.actualUnitPriceVnd || 0)).toLocaleString('vi-VN')} đ)
+                                  ✓ Đã mua ({item.actualPurchasedQuantity} {item.unit} - {formatVND((item.actualPurchasedQuantity || 0) * (item.actualUnitPriceVnd || 0))})
                                 </span>
                               ) : (
                                 <div className="flex items-center justify-center gap-1.5">
@@ -576,52 +606,81 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
               Chưa có báo cáo hoàn thành sửa chữa nào cần nghiệm thu
             </div>
           ) : (
-            maintenanceReports.map((rep) => (
-              <div key={rep.id} className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs space-y-3">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900">{rep.machineName}</h3>
-                    <p className="text-xs text-slate-500">Kỹ thuật viên: {rep.maintenanceStaffName}</p>
-                  </div>
-                  <div>
-                    {rep.isManagerApproved ? (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                        Đã nghiệm thu an toàn
-                      </span>
-                    ) : Permissions.canApproveMaintenanceReport(currentUser.role) ? (
-                      <button
-                        type="button"
-                        onClick={() => handleApproveCompletion(rep)}
-                        className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer"
-                      >
-                        Nghiệm thu & Đưa máy hoạt động
-                      </button>
-                    ) : (
-                      <span className="text-xs text-amber-700 font-semibold">Chờ Quản lý nghiệm thu</span>
-                    )}
-                  </div>
-                </div>
+            maintenanceReports.map((rep) => {
+              const canReview = Permissions.canApproveMaintenanceReport(currentUser.role) && !rep.isManagerApproved;
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 block">Nguyên nhân gốc rễ:</span>
-                    <p className="font-semibold text-slate-800">{rep.rootCause}</p>
+              return (
+                <div key={rep.id} className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-900">{rep.machineName}</h3>
+                      <p className="text-xs text-slate-500">
+                        Kỹ thuật viên: {rep.maintenanceStaffName} • Ngày nộp:{' '}
+                        {new Date(rep.submittedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    </div>
+                    <div>
+                      {rep.isManagerApproved ? (
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                          Đã nghiệm thu an toàn
+                        </span>
+                      ) : rep.returnReason ? (
+                        <span className="text-xs font-bold text-orange-700 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
+                          Bị trả lại: {rep.returnReason}
+                        </span>
+                      ) : canReview ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleApproveCompletion(rep)}
+                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer"
+                          >
+                            Nghiệm thu an toàn & Đưa máy hoạt động
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setReasonModal({
+                                isOpen: true,
+                                actionType: 'RETURN',
+                                targetType: 'REPORT',
+                                reportId: rep.id,
+                                entityCode: rep.machineName,
+                              })
+                            }
+                            className="px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-800 font-semibold text-xs border border-orange-200 cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Trả lại yêu cầu làm lại
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-amber-700 font-semibold">Chờ Quản lý nghiệm thu</span>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block">Công việc đã thực hiện:</span>
-                    <p className="font-semibold text-slate-800">{rep.actionsTaken}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block">Vật tư thay thế đã dùng:</span>
-                    <p className="text-slate-700">{rep.materialsUsedText || 'Không dùng vật tư'}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block">Kết quả chạy thử tải:</span>
-                    <p className="font-bold text-emerald-800">{rep.repairResult || 'Chạy êm, thông số đạt'}</p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block">Nguyên nhân gốc rễ:</span>
+                      <p className="font-semibold text-slate-800">{rep.rootCause}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Công việc đã thực hiện:</span>
+                      <p className="font-semibold text-slate-800">{rep.actionsTaken}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Vật tư thay thế thực tế đã dùng:</span>
+                      <p className="text-slate-700">{rep.materialsUsedText || 'Không dùng vật tư'}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Kết quả chạy thử tải:</span>
+                      <p className="font-bold text-emerald-800">{rep.repairResult || 'Chạy êm, thông số đạt'}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -633,6 +692,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-base">Báo cáo Sự cố Máy móc</h3>
               <button
+                type="button"
                 onClick={() => setShowReportFailureModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -643,7 +703,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
             <form onSubmit={handleReportFailure} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Thiết bị gặp sự cố <span className="text-rose-500">*</span>
+                  Máy móc gặp sự cố <span className="text-rose-500">*</span>
                 </label>
                 <select
                   value={failureMachineId}
@@ -661,55 +721,57 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Mức độ ảnh hưởng <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={severity}
-                  onChange={(e) => setSeverity(e.target.value as FailureSeverity)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 bg-white font-semibold focus:outline-hidden focus:border-indigo-500"
-                >
-                  <option value="CRITICAL">CRITICAL - Dừng toàn bộ dây chuyền sản xuất</option>
-                  <option value="HIGH">HIGH - Dừng máy chính, ảnh hưởng lớn</option>
-                  <option value="MEDIUM">MEDIUM - Máy rung, giảm công suất</option>
-                  <option value="LOW">LOW - Cảnh báo nhẹ, vẫn chạy được</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   Hiện tượng sự cố chi tiết <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   rows={3}
                   value={symptoms}
                   onChange={(e) => setSymptoms(e.target.value)}
-                  placeholder="Mô tả tiếng kêu, mùi khét, nhiệt độ gối đỡ, rò rỉ dầu mỡ..."
+                  placeholder="Tiếng kêu lạ, nhiệt độ buồng tăng cao, kẹt trục vít, rung lắc mạnh..."
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                   required
                 />
               </div>
 
-              <EvidenceUpload
-                label="Ảnh chụp hiện trường thiết bị hỏng"
-                value={failureImageUrl}
-                onChange={setFailureImageUrl}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Mức độ nghiêm trọng
+                  </label>
+                  <select
+                    value={severity}
+                    onChange={(e) => setSeverity(e.target.value as FailureSeverity)}
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 bg-white focus:outline-hidden focus:border-indigo-500"
+                  >
+                    <option value="LOW">Thấp - Vẫn chạy được</option>
+                    <option value="MEDIUM">Trung bình - Cần kiểm tra sớm</option>
+                    <option value="HIGH">Cao - Dừng máy sửa ngay</option>
+                    <option value="CRITICAL">Khẩn cấp - Nguy cơ cháy nổ / Hỏng nặng</option>
+                  </select>
+                </div>
+
+                <EvidenceUpload
+                  label="Ảnh chụp hiện trường"
+                  currentImageUrl={failureImageUrl}
+                  onImageSelected={setFailureImageUrl}
+                />
+              </div>
 
               {failureError && <p className="text-xs text-rose-600 font-medium">{failureError}</p>}
 
-              <div className="flex items-center justify-end gap-2.5 pt-3">
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowReportFailureModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs cursor-pointer shadow-xs"
                 >
-                  Gửi báo sự cố
+                  Gửi báo cáo sự cố
                 </button>
               </div>
             </form>
@@ -717,35 +779,37 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
         </div>
       )}
 
-      {/* SINGLE STEP: ASSIGN MAINTENANCE MODAL */}
+      {/* ASSIGN MAINTENANCE MODAL (Owner / Manager) */}
       {showAssignModal && selectedFailure && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-base">Tiếp nhận & Phân công Bảo trì</h3>
               <button
+                type="button"
                 onClick={() => setShowAssignModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAssignMaintenance} className="p-6 space-y-4">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                <p className="font-bold text-slate-900">{selectedFailure.machineName}</p>
-                <p className="text-slate-600">{selectedFailure.symptoms}</p>
-                <p className="text-[11px] text-rose-600 font-semibold">Mức độ: {selectedFailure.severity}</p>
+            <form onSubmit={handleAssignMaintenance} className="p-6 space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <p>
+                  Sự cố: <strong className="text-slate-900">{selectedFailure.code}</strong> — {selectedFailure.machineName}
+                </p>
+                <p className="text-slate-600">Hiện tượng: {selectedFailure.symptoms}</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Chọn Kỹ thuật viên Cơ điện phụ trách <span className="text-rose-500">*</span>
+                <label className="block font-semibold text-slate-700 uppercase mb-1.5">
+                  Chọn Kỹ thuật viên Bảo trì <span className="text-rose-500">*</span>
                 </label>
                 <select
                   value={selectedStaffId}
                   onChange={(e) => setSelectedStaffId(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 bg-white font-medium focus:outline-hidden focus:border-indigo-500"
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 bg-white"
                   required
                 >
                   {maintenanceStaffList.map((st) => (
@@ -756,28 +820,19 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                 </select>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowAssignModal(false);
-                    setReasonModal({
-                      isOpen: true,
-                      actionType: 'REJECT',
-                      targetType: 'FAILURE',
-                      failureId: selectedFailure.id,
-                      entityCode: selectedFailure.code,
-                    });
-                  }}
-                  className="px-3 py-2 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer"
+                  onClick={() => setShowAssignModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
                 >
-                  Từ chối yêu cầu
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer shadow-xs"
                 >
-                  Tiếp nhận & Phân công ngay
+                  Xác nhận Phân công
                 </button>
               </div>
             </form>
@@ -785,32 +840,42 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
         </div>
       )}
 
-      {/* MULTI-ITEM MATERIAL REQUEST MODAL */}
+      {/* MATERIAL REQUEST MODAL (Maintenance Staff Only) */}
       {showMaterialRequestModal && selectedFailure && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Đề xuất Vật tư Bảo trì</h3>
-                <p className="text-xs text-slate-500 font-mono">Máy: {selectedFailure.machineName}</p>
+                <h3 className="font-bold text-slate-900 text-base">Đề xuất Mua Vật tư Sửa chữa</h3>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">Sự cố: {selectedFailure.code} — {selectedFailure.machineName}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowMaterialRequestModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitMaterialRequest} className="p-6 space-y-4">
+            <form onSubmit={handleSubmitMaterialRequest} className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 uppercase">Danh mục vật tư thay thế</span>
+                <button
+                  type="button"
+                  onClick={handleAddItemRow}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-bold inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  + Thêm dòng vật tư
+                </button>
+              </div>
+
               <div className="space-y-3">
                 {materialItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5 text-xs"
-                  >
+                  <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-indigo-700">Vật tư #{idx + 1}</span>
+                      <span className="font-bold text-slate-800">Vật tư #{idx + 1}</span>
                       {materialItems.length > 1 && (
                         <button
                           type="button"
@@ -821,10 +886,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                         </button>
                       )}
                     </div>
-
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="sm:col-span-2">
-                        <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">
+                        <label className="block text-[10px] uppercase font-semibold text-slate-600 mb-0.5">
                           Tên vật tư / Quy cách <span className="text-rose-500">*</span>
                         </label>
                         <input
@@ -835,17 +899,16 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                             updated[idx].materialName = e.target.value;
                             setMaterialItems(updated);
                           }}
-                          placeholder="Vòng bi SKF, Dây curoa BATT..."
-                          className="w-full text-xs border border-slate-300 rounded-md p-2 bg-white"
+                          placeholder="Ví dụ: Vòng bi SKF 6312, Băng tải chịu nhiệt..."
+                          className="w-full border border-slate-300 rounded-lg p-2 bg-white"
                           required
                         />
                       </div>
-
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div>
-                          <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">
-                            SL <span className="text-rose-500">*</span>
-                          </label>
+                      <div>
+                        <label className="block text-[10px] uppercase font-semibold text-slate-600 mb-0.5">
+                          Số lượng &amp; Đơn vị <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="flex gap-1">
                           <input
                             type="number"
                             min="1"
@@ -855,14 +918,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                               updated[idx].requestedQuantity = Number(e.target.value);
                               setMaterialItems(updated);
                             }}
-                            className="w-full text-xs border border-slate-300 rounded-md p-2 bg-white font-bold"
+                            className="w-16 border border-slate-300 rounded-lg p-2 bg-white font-bold"
                             required
                           />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">
-                            ĐVT <span className="text-rose-500">*</span>
-                          </label>
                           <input
                             type="text"
                             value={item.unit}
@@ -871,17 +929,15 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                               updated[idx].unit = e.target.value;
                               setMaterialItems(updated);
                             }}
-                            placeholder="Cái, Bộ..."
-                            className="w-full text-xs border border-slate-300 rounded-md p-2 bg-white"
+                            className="flex-1 border border-slate-300 rounded-lg p-2 bg-white"
                             required
                           />
                         </div>
                       </div>
                     </div>
-
                     <div>
-                      <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">
-                        Lý do thay thế kỹ thuật <span className="text-rose-500">*</span>
+                      <label className="block text-[10px] uppercase font-semibold text-slate-600 mb-0.5">
+                        Lý do kỹ thuật cần thay
                       </label>
                       <input
                         type="text"
@@ -891,36 +947,27 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                           updated[idx].reason = e.target.value;
                           setMaterialItems(updated);
                         }}
-                        placeholder="Mòn rãnh, đứt gãy, quá nhiệt..."
-                        className="w-full text-xs border border-slate-300 rounded-md p-2 bg-white"
-                        required
+                        placeholder="Vòng bi mòn tạo rung lắc, bạc đạn vỡ..."
+                        className="w-full border border-slate-300 rounded-lg p-2 bg-white"
                       />
                     </div>
                   </div>
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={handleAddItemRow}
-                className="w-full py-2 rounded-xl border border-dashed border-indigo-300 text-indigo-700 hover:bg-indigo-50/50 font-semibold text-xs cursor-pointer"
-              >
-                + Thêm vật tư khác
-              </button>
-
               {matReqError && <p className="text-xs text-rose-600 font-medium">{matReqError}</p>}
 
-              <div className="flex items-center justify-end gap-2.5 pt-3">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowMaterialRequestModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer shadow-xs"
                 >
                   Gửi đề xuất vật tư
                 </button>
@@ -930,260 +977,218 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
         </div>
       )}
 
-      {/* COMPLETION REPORT MODAL */}
-      {showCompletionModal && selectedFailure && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">Báo cáo Hoàn thành Sửa chữa</h3>
-                <p className="text-xs text-slate-500 font-mono">Máy: {selectedFailure.machineName}</p>
-              </div>
-              <button
-                onClick={() => setShowCompletionModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitCompletionReport} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Nguyên nhân gốc rễ (Root Cause) <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  rows={2}
-                  value={rootCause}
-                  onChange={(e) => setRootCause(e.target.value)}
-                  placeholder="Xác định nguyên nhân mòn, dị vật, quá tải..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Nội dung công việc sửa chữa đã thực hiện <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  rows={3}
-                  value={actionsTaken}
-                  onChange={(e) => setActionsTaken(e.target.value)}
-                  placeholder="Tháo cụm gối đỡ, thay vòng bi, cân chỉnh đồng tâm trục..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Vật tư thực tế đã sử dụng
-                </label>
-                <input
-                  type="text"
-                  value={materialsUsedText}
-                  onChange={(e) => setMaterialsUsedText(e.target.value)}
-                  placeholder="2 vòng bi SKF, 5 tuýp mỡ bò Mobilith..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Kết quả chạy thử không tải & có tải
-                </label>
-                <input
-                  type="text"
-                  value={repairResult}
-                  onChange={(e) => setRepairResult(e.target.value)}
-                  placeholder="Nhiệt độ ổn định 45°C, không rung, đạt tiêu chuẩn an toàn..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <EvidenceUpload
-                  label="Ảnh trước khi sửa"
-                  value={beforeImageUrl}
-                  onChange={setBeforeImageUrl}
-                />
-                <EvidenceUpload
-                  label="Ảnh sau khi sửa xong"
-                  value={afterImageUrl}
-                  onChange={setAfterImageUrl}
-                />
-              </div>
-
-              {completionError && <p className="text-xs text-rose-600 font-medium">{completionError}</p>}
-
-              <div className="flex items-center justify-end gap-2.5 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCompletionModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-                >
-                  Gửi báo cáo hoàn thành
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* REASON MODAL */}
-      <ReasonModal
-        isOpen={reasonModal.isOpen}
-        title={reasonModal.targetType === 'FAILURE' ? 'Từ chối yêu cầu sự cố' : 'Từ chối dòng vật tư'}
-        actionType="REJECT"
-        entityName={reasonModal.entityCode}
-        onClose={() => setReasonModal({ ...reasonModal, isOpen: false })}
-        onSubmit={(reason) => {
-          if (reasonModal.targetType === 'FAILURE' && reasonModal.failureId) {
-            db.assignMaintenanceStaff({
-              failureId: reasonModal.failureId,
-              maintenanceStaffId: '',
-              decision: 'REJECT',
-              rejectionReason: reason,
-              user: currentUser,
-            });
-            showToast('error', 'Đã từ chối sự cố', reasonModal.entityCode);
-          } else if (
-            reasonModal.targetType === 'MATERIAL_ITEM' &&
-            reasonModal.requestId &&
-            reasonModal.itemId
-          ) {
-            db.decideMaterialItem({
-              requestId: reasonModal.requestId,
-              itemId: reasonModal.itemId,
-              decision: 'REJECT',
-              rejectionReason: reason,
-              user: currentUser,
-            });
-            showToast('error', 'Đã từ chối dòng vật tư', reasonModal.entityCode);
-          }
-          setReasonModal({ ...reasonModal, isOpen: false });
-        }}
-      />
-
-      {/* GHI NHẬN MUA VẬT TƯ THỰC TẾ (ĐỒNG BỘ TÀI CHÍNH) */}
+      {/* ACTUAL PURCHASE RECORD MODAL */}
       {purchaseModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
-                <h3 className="font-bold text-slate-900 text-sm">Ghi nhận Mua Vật tư Thực tế</h3>
-                <p className="text-xs text-indigo-700 font-semibold">{purchaseModal.materialName}</p>
+                <h3 className="font-bold text-slate-900 text-base">Ghi nhận Mua Vật tư Thực tế</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Vật tư: <strong className="text-slate-800">{purchaseModal.materialName}</strong>
+                </p>
               </div>
               <button
+                type="button"
                 onClick={() => setPurchaseModal({ ...purchaseModal, isOpen: false })}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleConfirmActualPurchase} className="p-6 space-y-4">
+            <form onSubmit={handleConfirmActualPurchase} className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Số lượng thực mua ({purchaseModal.unit}) <span className="text-rose-500">*</span>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">
+                    Số lượng mua ({purchaseModal.unit}) *
                   </label>
                   <input
                     type="number"
                     min="1"
                     value={actualPurchaseQty}
                     onChange={(e) => setActualPurchaseQty(Number(e.target.value))}
-                    className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    className="w-full border border-slate-300 rounded-lg p-2.5 font-bold"
                     required
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Đơn giá mua (VND) <span className="text-rose-500">*</span>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">
+                    Đơn giá mua (VNĐ) *
                   </label>
                   <input
                     type="number"
-                    min="1000"
+                    min="1"
+                    step="1000"
                     value={actualUnitPrice}
                     onChange={(e) => setActualUnitPrice(Number(e.target.value))}
-                    className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    className="w-full border border-slate-300 rounded-lg p-2.5 font-bold"
                     required
                   />
                 </div>
               </div>
 
-              {/* Total Calculation Display */}
-              <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
-                <span className="text-xs font-semibold text-indigo-900">Tổng tiền thanh toán:</span>
-                <span className="text-base font-bold text-indigo-950 font-mono">
-                  {(actualPurchaseQty * actualUnitPrice).toLocaleString('vi-VN')} VND
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex justify-between items-center">
+                <span className="font-semibold text-slate-700">Tổng thanh toán:</span>
+                <span className="text-base font-bold text-indigo-700">
+                  {formatVND(actualPurchaseQty * actualUnitPrice)}
                 </span>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Nhà cung cấp / Cửa hàng thiết bị
-                </label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Cửa hàng / Nhà cung cấp</label>
                 <input
                   type="text"
                   value={actualSupplier}
                   onChange={(e) => setActualSupplier(e.target.value)}
-                  placeholder="Công ty điện cơ, đại lý phụ tùng..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Số hóa đơn / Chứng từ thanh toán
-                </label>
-                <input
-                  type="text"
-                  value={actualInvoiceNum}
-                  onChange={(e) => setActualInvoiceNum(e.target.value)}
-                  placeholder="HD-12345, PXK-9876..."
-                  className="w-full text-xs font-mono border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                  placeholder="Công ty Thiết bị Cơ điện..."
+                  className="w-full border border-slate-300 rounded-lg p-2.5"
                 />
               </div>
 
               <EvidenceUpload
-                label="Ảnh chụp hóa đơn / Phiếu chi / Phiếu xuất kho"
-                value={actualInvoiceImg}
-                onChange={setActualInvoiceImg}
+                label="Ảnh chụp hóa đơn / Phiếu thu"
+                currentImageUrl={actualInvoiceImg}
+                onImageSelected={setActualInvoiceImg}
               />
 
-              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
-                <span className="font-bold">✓ Tự động đồng bộ:</span>
-                <span>Chi phí này sẽ được ghi nhận ngay vào Sổ chi phí Module Tài chính</span>
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-3">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setPurchaseModal({ ...purchaseModal, isOpen: false })}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer shadow-xs"
                 >
-                  Lưu &amp; Hạch toán Chi phí
+                  Lưu &amp; Ghi sổ Chi phí
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* COMPLETION REPORT MODAL (Maintenance Staff Only) */}
+      {showCompletionModal && selectedFailure && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Báo cáo Hoàn thành Sửa chữa Máy</h3>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">{selectedFailure.code} — {selectedFailure.machineName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCompletionModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitCompletionReport} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">
+                  Nguyên nhân gốc rễ <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={rootCause}
+                  onChange={(e) => setRootCause(e.target.value)}
+                  placeholder="Do mòn cơ khí, thiếu mỡ bôi trơn, kẹt dăm gỗ..."
+                  className="w-full border border-slate-300 rounded-lg p-2.5"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">
+                  Công việc bảo dưỡng / Sửa chữa đã thực hiện <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={actionsTaken}
+                  onChange={(e) => setActionsTaken(e.target.value)}
+                  placeholder="Đã tháo puly, thay vòng bi mới, bơm mỡ chịu nhiệt, siết bu lông chân máy..."
+                  className="w-full border border-slate-300 rounded-lg p-2.5"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">
+                  Vật tư thực tế đã sử dụng
+                </label>
+                <input
+                  type="text"
+                  value={materialsUsedText}
+                  onChange={(e) => setMaterialsUsedText(e.target.value)}
+                  placeholder="Ví dụ: 1 vòng bi SKF 6312, 1kg mỡ chịu nhiệt..."
+                  className="w-full border border-slate-300 rounded-lg p-2.5"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">
+                  Kết quả chạy thử tải &amp; Thông số kỹ thuật
+                </label>
+                <input
+                  type="text"
+                  value={repairResult}
+                  onChange={(e) => setRepairResult(e.target.value)}
+                  placeholder="Chạy không tải 30 phút đạt yêu cầu, chạy có tải êm, nhiệt độ buồng 85 độ C"
+                  className="w-full border border-slate-300 rounded-lg p-2.5"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <EvidenceUpload
+                  label="Ảnh máy trước sửa"
+                  currentImageUrl={beforeImageUrl}
+                  onImageSelected={setBeforeImageUrl}
+                />
+                <EvidenceUpload
+                  label="Ảnh máy sau sửa"
+                  currentImageUrl={afterImageUrl}
+                  onImageSelected={setAfterImageUrl}
+                />
+              </div>
+
+              {completionError && <p className="text-xs text-rose-600 font-medium">{completionError}</p>}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCompletionModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer shadow-xs"
+                >
+                  Nộp Báo cáo Nghiệm thu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* REASON MODAL FOR RETURNING REPORT OR REJECTING MATERIAL ITEM */}
+      <ReasonModal
+        isOpen={reasonModal.isOpen}
+        title={reasonModal.actionType === 'RETURN' ? 'Trả lại Báo cáo sửa chữa' : 'Từ chối dòng vật tư'}
+        actionType={reasonModal.actionType}
+        entityCode={reasonModal.entityCode}
+        onConfirm={handleConfirmReason}
+        onClose={() => setReasonModal({ ...reasonModal, isOpen: false })}
+      />
     </div>
   );
 };

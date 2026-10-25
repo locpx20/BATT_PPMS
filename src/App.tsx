@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User } from './types';
 import { auth } from './services/auth';
 import { db } from './services/db';
-import { NavItemKey } from './services/rbac';
+import { NavItemKey, NAV_ITEMS } from './services/rbac';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
 import { AccountModal } from './components/layout/AccountModal';
@@ -42,9 +42,16 @@ export default function App() {
   useEffect(() => {
     const unsubAuth = auth.subscribe((u) => {
       setCurrentUser(u);
-      // If user switched to Admin, set view to user-admin or dashboard
-      if (u?.role === 'A') {
-        setCurrentView('user-admin');
+      if (u) {
+        if (u.role === 'A') {
+          setCurrentView('user-admin');
+        } else {
+          // Verify current view permissions
+          const currentNav = NAV_ITEMS.find((n) => n.key === currentView);
+          if (!currentNav || !currentNav.allowedRoles.includes(u.role)) {
+            setCurrentView('dashboard');
+          }
+        }
       }
     });
 
@@ -117,8 +124,11 @@ export default function App() {
           onNavigateView={handleNavigateView}
         />
 
-        {/* View Content Stage */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto animate-in fade-in duration-150">
+        {/* View Content Stage - Remounts cleanly on user/role switch */}
+        <main
+          key={`${currentUser.id}_${currentUser.role}`}
+          className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto animate-in fade-in duration-150"
+        >
           {currentView === 'dashboard' && (
             <DashboardView currentUser={currentUser} onNavigate={handleNavigateView} />
           )}

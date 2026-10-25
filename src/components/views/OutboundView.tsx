@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Truck, Plus, CheckCircle2, RotateCcw, XCircle, AlertTriangle, FileText, UserCheck, ShieldCheck, X } from 'lucide-react';
+import { Truck, Plus, CheckCircle2, RotateCcw, XCircle, AlertTriangle, FileText, UserCheck, ShieldCheck, X, RefreshCw } from 'lucide-react';
 import { User, OutboundProposal, Customer, LotItem } from '../../types';
 import { db } from '../../services/db';
 import { Permissions } from '../../services/rbac';
 import { StatusBadge } from '../common/StatusBadge';
-import { DecisionButtons } from '../common/DecisionButtons';
 import { ReasonModal } from '../common/ReasonModal';
 import { EvidenceUpload } from '../common/EvidenceUpload';
 import { showToast } from '../common/Toast';
+import { formatVND, formatNumberVN } from '../../utils/formatters';
 
 interface OutboundViewProps {
   currentUser: User;
@@ -26,6 +26,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
   const [showQcModal, setShowQcModal] = useState(false);
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [showOwnerDecisionModal, setShowOwnerDecisionModal] = useState(false);
+  const [showResolveModal, setShowResolveModal] = useState(false);
   const [dispatchRejectModal, setDispatchRejectModal] = useState<{
     isOpen: boolean;
     proposal: OutboundProposal | null;
@@ -59,7 +60,19 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
   // Form states: Owner Decision Modal (Override customer, adjust price, approve/return/reject)
   const [overrideCustomerId, setOverrideCustomerId] = useState('');
   const [adjustedPrice, setAdjustedPrice] = useState<number>(0);
-  const [ownerDecisionReason, setOwnerDecisionReason] = useState('');
+
+  // Form states: Resolve Outbound Rejection (Manager)
+  const [resolveType, setResolveType] = useState<'UPDATE_RECIPIENT_AND_RESUBMIT' | 'ESCALATE_TO_OWNER'>(
+    'UPDATE_RECIPIENT_AND_RESUBMIT'
+  );
+  const [resolveRecipientName, setResolveRecipientName] = useState('');
+  const [resolveRecipientPhone, setResolveRecipientPhone] = useState('');
+  const [resolvePlate, setResolvePlate] = useState('');
+  const [resolveCustomerId, setResolveCustomerId] = useState('');
+  const [resolveQty, setResolveQty] = useState<number>(10000);
+  const [resolvePrice, setResolvePrice] = useState<number>(3850);
+  const [resolveExplanation, setResolveExplanation] = useState('');
+  const [resolveError, setResolveError] = useState('');
 
   // Reason Modal
   const [reasonModal, setReasonModal] = useState<{
@@ -113,7 +126,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
     setSelectedProp(p);
     setOverrideCustomerId(p.customerId);
     setAdjustedPrice(p.unitPriceVnd || 3850);
-    setOwnerDecisionReason('');
     setShowOwnerDecisionModal(true);
   };
 
@@ -216,7 +228,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
       showToast(
         'success',
         'Xuất kho thành công',
-        `Đã bàn giao ${actualDispatchedKg.toLocaleString('vi-VN')} kg cho xe ${truckPlateVerified}. Tồn kho đã giảm.`
+        `Đã bàn giao ${formatNumberVN(actualDispatchedKg)} kg cho xe ${truckPlateVerified}. Tồn kho đã giảm.`
       );
       setShowDispatchModal(false);
     } else {
@@ -239,6 +251,56 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
     }
   };
 
+  const handleOpenResolveRejection = (p: OutboundProposal) => {
+    setSelectedProp(p);
+    setResolveType('UPDATE_RECIPIENT_AND_RESUBMIT');
+    setResolveRecipientName(p.recipientName || '');
+    setResolveRecipientPhone(p.recipientPhone || '');
+    setResolvePlate(p.truckLicensePlate || '');
+    setResolveCustomerId(p.customerId);
+    setResolveQty(p.requestedQuantityKg);
+    setResolvePrice(p.unitPriceVnd || 3850);
+    setResolveExplanation('');
+    setResolveError('');
+    setShowResolveModal(true);
+  };
+
+  const handleConfirmResolve = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProp) return;
+    if (!resolveExplanation.trim()) {
+      setResolveError('Vui lòng nhập phương án và lý do xử lý');
+      return;
+    }
+
+    const res = db.resolveOutboundRejection({
+      proposalId: selectedProp.id,
+      resolutionType: resolveType,
+      recipientName: resolveRecipientName,
+      recipientPhone: resolveRecipientPhone,
+      truckLicensePlate: resolvePlate,
+      newCustomerId: resolveCustomerId,
+      newRequestedQuantityKg: resolveQty,
+      newUnitPriceVnd: resolvePrice,
+      explanation: resolveExplanation.trim(),
+      user: currentUser,
+    });
+
+    if (res.success) {
+      showToast(
+        'success',
+        'Xử lý thành công',
+        resolveType === 'UPDATE_RECIPIENT_AND_RESUBMIT'
+          ? 'Đã cập nhật lại thông tin xe và chuyển lại cho Thủ kho xuất hàng'
+          : 'Đã cập nhật thông tin thương mại và trình Giám đốc duyệt lại'
+      );
+      setShowResolveModal(false);
+      setSelectedProp(null);
+    } else {
+      setResolveError(res.error || 'Lỗi xử lý');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -250,7 +312,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
           </p>
         </div>
 
-        {/* Can create proposal */}
         {(currentUser.role === 'WS' || currentUser.role === 'M' || currentUser.role === 'O') && (
           <button
             type="button"
@@ -274,7 +335,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                 <th className="py-3 px-4">Khách hàng</th>
                 <th className="py-3 px-4">Lô hàng xuất</th>
                 <th className="py-3 px-4 text-right">Khối lượng</th>
-                <th className="py-3 px-4 text-right">Đơn giá (VND/kg)</th>
+                <th className="py-3 px-4 text-right">Đơn giá bán</th>
                 <th className="py-3 px-4 text-center">QC Xuất</th>
                 <th className="py-3 px-4">Xe nhận hàng</th>
                 <th className="py-3 px-4">Trạng thái</th>
@@ -300,12 +361,15 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                   p.truckLicensePlate &&
                   Permissions.canConfirmDispatch(currentUser.role);
 
+                const canResolveRejection =
+                  p.status === 'REJECTED_BY_WAREHOUSE' && (currentUser.role === 'M' || currentUser.role === 'O');
+
                 return (
                   <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3 px-4 font-mono font-bold text-slate-900">{p.code}</td>
                     <td className="py-3 px-4">
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        {p.sourceWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'}
+                        {p.sourceWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'}
                       </span>
                     </td>
                     <td className="py-3 px-4 font-semibold text-slate-800">
@@ -318,10 +382,10 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                     </td>
                     <td className="py-3 px-4 font-mono font-semibold text-indigo-700">{p.lotCode}</td>
                     <td className="py-3 px-4 text-right font-bold text-slate-900">
-                      {p.requestedQuantityKg.toLocaleString('vi-VN')} kg
+                      {formatNumberVN(p.requestedQuantityKg)} kg
                     </td>
                     <td className="py-3 px-4 text-right font-medium">
-                      {p.unitPriceVnd ? `${p.unitPriceVnd.toLocaleString('vi-VN')} VND` : '—'}
+                      {p.unitPriceVnd ? `${formatNumberVN(p.unitPriceVnd)} đ/kg` : '—'}
                     </td>
                     <td className="py-3 px-4 text-center">
                       {p.outboundQcTested ? (
@@ -360,10 +424,13 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <StatusBadge status={p.status} size="sm" />
-                      {p.dispatchMismatchFlag && (
-                        <span className="block text-[10px] text-rose-600 font-bold mt-0.5">
-                          Lệch biển số xe!
+                      <StatusBadge status={p.status} size="sm" context="OUTBOUND" />
+                      {p.status === 'REJECTED_BY_WAREHOUSE' && p.dispatchRejectionReason && (
+                        <span
+                          className="block text-[10px] text-rose-600 font-medium mt-0.5 truncate max-w-[150px]"
+                          title={p.dispatchRejectionReason}
+                        >
+                          Lý do kho từ chối: {p.dispatchRejectionReason}
                         </span>
                       )}
                     </td>
@@ -400,6 +467,18 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                           </div>
                         )}
 
+                        {/* Manager resolution for warehouse-rejected dispatch */}
+                        {canResolveRejection && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenResolveRejection(p)}
+                            className="px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Xử lý từ chối
+                          </button>
+                        )}
+
                         {p.isDispatched && (
                           <span className="text-[11px] font-semibold text-slate-500">Đã giao hàng</span>
                         )}
@@ -413,6 +492,181 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
         </div>
       </div>
 
+      {/* RESOLVE WAREHOUSE REJECTION MODAL (Manager) */}
+      {showResolveModal && selectedProp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Quản lý Xử lý Đề xuất bị Kho từ chối</h3>
+                <p className="text-xs text-slate-500 font-mono">Hồ sơ: {selectedProp.code}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResolveModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmResolve} className="p-6 space-y-4">
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900">
+                <strong>Lý do Thủ kho từ chối:</strong>
+                <p className="mt-0.5">{selectedProp.dispatchRejectionReason || 'Không xác định'}</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                  Chọn phương án xử lý:
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="resolveType"
+                      checked={resolveType === 'UPDATE_RECIPIENT_AND_RESUBMIT'}
+                      onChange={() => setResolveType('UPDATE_RECIPIENT_AND_RESUBMIT')}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-800 text-xs block">
+                        Cập nhật thông tin tài xế / xe nhận và gửi lại Thủ kho
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Chuyển lại trạng thái Đã duyệt để Thủ kho kiểm tra xe thực tế và xuất kho
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="resolveType"
+                      checked={resolveType === 'ESCALATE_TO_OWNER'}
+                      onChange={() => setResolveType('ESCALATE_TO_OWNER')}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-800 text-xs block">
+                        Điều chỉnh thông tin thương mại và trình Giám đốc duyệt lại
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Thay đổi khách hàng, số lượng hoặc đơn giá và gửi lại Owner quyết định
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {resolveType === 'UPDATE_RECIPIENT_AND_RESUBMIT' ? (
+                <div className="space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Tên tài xế mới:</label>
+                    <input
+                      type="text"
+                      value={resolveRecipientName}
+                      onChange={(e) => setResolveRecipientName(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg p-2 bg-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Số điện thoại:</label>
+                    <input
+                      type="text"
+                      value={resolveRecipientPhone}
+                      onChange={(e) => setResolveRecipientPhone(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg p-2 bg-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Biển số xe mới:</label>
+                    <input
+                      type="text"
+                      value={resolvePlate}
+                      onChange={(e) => setResolvePlate(e.target.value.toUpperCase())}
+                      className="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono font-bold"
+                      required
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Khách hàng nhận:</label>
+                    <select
+                      value={resolveCustomerId}
+                      onChange={(e) => setResolveCustomerId(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg p-2 bg-white"
+                    >
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.code} - {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Khối lượng (kg):</label>
+                      <input
+                        type="number"
+                        value={resolveQty}
+                        onChange={(e) => setResolveQty(Number(e.target.value))}
+                        className="w-full border border-slate-300 rounded-lg p-2 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Đơn giá đề xuất (đ/kg):</label>
+                      <input
+                        type="number"
+                        value={resolvePrice}
+                        onChange={(e) => setResolvePrice(Number(e.target.value))}
+                        className="w-full border border-slate-300 rounded-lg p-2 bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Phương án & Lý do xử lý cụ thể <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={resolveExplanation}
+                  onChange={(e) => setResolveExplanation(e.target.value)}
+                  placeholder="Ghi rõ lý do thay đổi xe hoặc điều chỉnh thương mại..."
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800"
+                  required
+                />
+              </div>
+
+              {resolveError && <p className="text-xs text-rose-600 font-medium">{resolveError}</p>}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowResolveModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs"
+                >
+                  Xác nhận Xử lý lại
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* CREATE OUTBOUND PROPOSAL MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
@@ -420,6 +674,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-base">Tạo Đề xuất Xuất hàng</h3>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -458,7 +713,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                 >
                   {inWarehouseLots.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.lotCode} ({l.productName} • {l.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'} • Khả dụng: {l.availableQuantityKg.toLocaleString('vi-VN')} kg)
+                      {l.lotCode} ({l.productName} • {l.targetWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'} • Khả dụng: {formatNumberVN(l.availableQuantityKg)} kg)
                     </option>
                   ))}
                 </select>
@@ -488,7 +743,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                       type="number"
                       value={unitPriceVnd}
                       onChange={(e) => setUnitPriceVnd(Number(e.target.value))}
-                      placeholder="VND/kg"
+                      placeholder="VNĐ/kg"
                       className="w-full text-sm font-semibold border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                     />
                   ) : (
@@ -507,7 +762,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ghi chú điều kiện giao hàng, cảng đến..."
+                  placeholder="Ghi chú điều kiện giao hàng, địa chỉ giao..."
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
                 />
               </div>
@@ -540,10 +795,11 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Owner Quyết định Xuất hàng Cuối cùng</h3>
+                <h3 className="font-bold text-slate-900 text-base">Owner Quyết định Xuất hàng</h3>
                 <p className="text-xs text-slate-500 font-mono">Đề xuất: {selectedProp.code}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowOwnerDecisionModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -554,14 +810,13 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
             <form onSubmit={handleOwnerApprove} className="p-6 space-y-4">
               <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 space-y-1 text-xs">
                 <p className="font-semibold text-indigo-900">
-                  Lô hàng xuất: <span className="font-mono">{selectedProp.lotCode}</span> ({selectedProp.sourceWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'})
+                  Lô hàng xuất: <span className="font-mono">{selectedProp.lotCode}</span> ({selectedProp.sourceWarehouse === 'KHO_A' ? 'Kho A' : 'Kho B'})
                 </p>
                 <p className="text-indigo-800">
-                  Khối lượng: {selectedProp.requestedQuantityKg.toLocaleString('vi-VN')} kg
+                  Khối lượng: {formatNumberVN(selectedProp.requestedQuantityKg)} kg
                 </p>
               </div>
 
-              {/* Owner power: Override customer while preserving history */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   Đối tác mua hàng (Owner có quyền thay đổi đối tác)
@@ -579,10 +834,9 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                 </select>
               </div>
 
-              {/* Owner power: Set or adjust selling price */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Đơn giá bán chốt (VND/kg) <span className="text-rose-500">*</span>
+                  Đơn giá bán chốt (VNĐ/kg) <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -593,7 +847,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                   required
                 />
                 <span className="text-xs font-bold text-emerald-700 mt-1 block">
-                  Tổng giá trị đơn hàng: {(adjustedPrice * selectedProp.requestedQuantityKg).toLocaleString('vi-VN')} VND
+                  Tổng giá trị đơn hàng: {formatVND(adjustedPrice * selectedProp.requestedQuantityKg)}
                 </span>
               </div>
 
@@ -650,6 +904,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-base">Ghi nhận Xe & Người Nhận hàng</h3>
               <button
+                type="button"
                 onClick={() => setShowRecipientModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -698,9 +953,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                   className="w-full text-sm font-mono font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
                   required
                 />
-                <span className="text-[11px] text-slate-400 mt-1 block">
-                  Thủ kho sẽ kiểm tra biển số xe thực tế trước khi cho phép xuất kho
-                </span>
               </div>
 
               <div>
@@ -743,6 +995,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-base">Ghi nhận QC Kiểm tra Xuất hàng</h3>
               <button
+                type="button"
                 onClick={() => setShowQcModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -813,6 +1066,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                 <p className="text-xs text-slate-500 font-mono">Đề xuất: {selectedProp.code}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowDispatchModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -839,7 +1093,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                 <div>
                   <span className="text-slate-400 block">Khối lượng phê duyệt:</span>
                   <span className="font-bold text-slate-900">
-                    {selectedProp.requestedQuantityKg.toLocaleString('vi-VN')} kg
+                    {formatNumberVN(selectedProp.requestedQuantityKg)} kg
                   </span>
                 </div>
               </div>
@@ -856,9 +1110,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                   className="w-full text-base font-mono font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
                   required
                 />
-                <span className="text-[11px] text-slate-400 mt-1 block">
-                  Nếu không trùng khớp biển số đăng ký, hệ thống sẽ chặn xuất và cảnh báo Quản lý.
-                </span>
               </div>
 
               <div>
@@ -877,8 +1128,8 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
 
               <EvidenceUpload
                 label="Ảnh chụp xe chở hàng / Biên bản bàn giao"
-                value={dispatchEvidenceUrl}
-                onChange={setDispatchEvidenceUrl}
+                currentImageUrl={dispatchEvidenceUrl}
+                onImageSelected={setDispatchEvidenceUrl}
               />
 
               {dispatchError && <p className="text-xs text-rose-600 font-medium">{dispatchError}</p>}
@@ -903,14 +1154,14 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
         </div>
       )}
 
-      {/* Mandatory Reason Modal */}
+      {/* Mandatory Reason Modal for Owner Return/Reject */}
       <ReasonModal
         isOpen={reasonModal.isOpen}
         title={reasonModal.actionType === 'RETURN' ? 'Trả lại đề xuất xuất hàng' : 'Từ chối đề xuất xuất hàng'}
         actionType={reasonModal.actionType}
-        entityName={reasonModal.entityCode}
+        entityCode={reasonModal.entityCode}
         onClose={() => setReasonModal({ isOpen: false, actionType: 'RETURN', targetId: '', entityCode: '' })}
-        onSubmit={(reason) => {
+        onConfirm={(reason: string) => {
           db.ownerDecideOutboundProposal({
             proposalId: reasonModal.targetId,
             decision: reasonModal.actionType,
@@ -925,15 +1176,16 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
           setReasonModal({ isOpen: false, actionType: 'RETURN', targetId: '', entityCode: '' });
         }}
       />
+
       {/* Warehouse Staff Dispatch Rejection Modal */}
       {dispatchRejectModal.proposal && (
         <ReasonModal
           isOpen={dispatchRejectModal.isOpen}
           title="Từ chối Xuất kho Bàn giao"
           actionType="REJECT"
-          entityName={dispatchRejectModal.proposal.code}
+          entityCode={dispatchRejectModal.proposal.code}
           onClose={() => setDispatchRejectModal({ isOpen: false, proposal: null })}
-          onSubmit={handleConfirmRejectDispatch}
+          onConfirm={handleConfirmRejectDispatch}
         />
       )}
     </div>

@@ -2489,6 +2489,106 @@ class DatabaseService {
     return { success: true };
   }
 
+  // WF-12 Manager: Xử lý đề xuất bị Thủ kho từ chối (Sec 25)
+  public resolveOutboundRejection(params: {
+    proposalId: string;
+    resolutionType: 'UPDATE_RECIPIENT_AND_RESUBMIT' | 'ESCALATE_TO_OWNER';
+    recipientName?: string;
+    recipientPhone?: string;
+    truckLicensePlate?: string;
+    newCustomerId?: string;
+    newRequestedQuantityKg?: number;
+    newUnitPriceVnd?: number;
+    explanation: string;
+    user: User;
+  }): { success: boolean; error?: string } {
+    const prop = this.data.outboundProposals.find((p) => p.id === params.proposalId);
+    if (!prop) return { success: false, error: 'Không tìm thấy đề xuất' };
+    if (prop.status !== 'REJECTED_BY_WAREHOUSE') {
+      return { success: false, error: 'Chỉ xử lý các đề xuất bị Thủ kho từ chối' };
+    }
+    if (!params.explanation?.trim()) {
+      return { success: false, error: 'Vui lòng nhập phương án xử lý' };
+    }
+
+    if (params.resolutionType === 'UPDATE_RECIPIENT_AND_RESUBMIT') {
+      if (params.recipientName) prop.recipientName = params.recipientName.trim();
+      if (params.recipientPhone) prop.recipientPhone = params.recipientPhone.trim();
+      if (params.truckLicensePlate) prop.truckLicensePlate = params.truckLicensePlate.trim().toUpperCase();
+      prop.status = 'APPROVED'; // Ready for Warehouse Staff to inspect again!
+      prop.notes = `${prop.notes ? prop.notes + ' | ' : ''}Quản lý xử lý lại sau khi kho từ chối: ${params.explanation}`;
+
+      this.addAuditLog({
+        actorId: params.user.id,
+        actorName: params.user.fullName,
+        actorRole: params.user.role,
+        action: 'Quản lý cập nhật xe và gửi lại Thủ kho',
+        entityType: 'OUTBOUND_PROPOSAL',
+        entityId: prop.id,
+        entityCode: prop.code,
+        previousState: 'REJECTED_BY_WAREHOUSE',
+        newState: 'APPROVED',
+        reason: params.explanation,
+        details: `Cập nhật thông tin tài xế/xe: ${prop.recipientName} (${prop.truckLicensePlate})`,
+      });
+
+      this.addNotification({
+        recipientRole: 'WS',
+        title: 'Đề xuất xuất kho đã cập nhật xe',
+        message: `${prop.code}: Quản lý đã chỉnh sửa thông tin xe và gửi lại kho`,
+        entityType: 'OUTBOUND_PROPOSAL',
+        entityId: prop.id,
+        targetView: 'outbound',
+      });
+    } else {
+      // Escalate to Owner
+      if (params.newCustomerId) {
+        const cust = this.data.customers.find((c) => c.id === params.newCustomerId);
+        if (cust) {
+          prop.originalCustomerId = prop.customerId;
+          prop.originalCustomerName = prop.customerName;
+          prop.customerId = cust.id;
+          prop.customerName = cust.name;
+        }
+      }
+      if (params.newRequestedQuantityKg && params.newRequestedQuantityKg > 0) {
+        prop.requestedQuantityKg = params.newRequestedQuantityKg;
+      }
+      if (params.newUnitPriceVnd && params.newUnitPriceVnd > 0) {
+        prop.unitPriceVnd = params.newUnitPriceVnd;
+        prop.totalValueVnd = prop.requestedQuantityKg * params.newUnitPriceVnd;
+      }
+      prop.status = 'PENDING_OWNER_APPROVAL';
+      prop.notes = `${prop.notes ? prop.notes + ' | ' : ''}Quản lý trình lại Giám đốc sau khi kho từ chối: ${params.explanation}`;
+
+      this.addAuditLog({
+        actorId: params.user.id,
+        actorName: params.user.fullName,
+        actorRole: params.user.role,
+        action: 'Quản lý chuyển tiếp Giám đốc duyệt lại',
+        entityType: 'OUTBOUND_PROPOSAL',
+        entityId: prop.id,
+        entityCode: prop.code,
+        previousState: 'REJECTED_BY_WAREHOUSE',
+        newState: 'PENDING_OWNER_APPROVAL',
+        reason: params.explanation,
+        details: 'Đã cập nhật lại thông tin thương mại và gửi Giám đốc phê duyệt',
+      });
+
+      this.addNotification({
+        recipientRole: 'O',
+        title: 'Đề xuất xuất kho cần duyệt lại',
+        message: `${prop.code}: Quản lý đã trình lại Giám đốc sau khi kho từ chối`,
+        entityType: 'OUTBOUND_PROPOSAL',
+        entityId: prop.id,
+        targetView: 'outbound',
+      });
+    }
+
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
   // ==========================================
   // WF-10 MACHINE FAILURE REPORTING
   // ==========================================
@@ -2570,7 +2670,7 @@ class DatabaseService {
         actorId: params.user.id,
         actorName: params.user.fullName,
         actorRole: params.user.role,
-        action: 'Từ chối',
+        action: 'Từ chối sự cố',
         entityType: 'MACHINE_FAILURE',
         entityId: fail.id,
         entityCode: fail.code,
@@ -2620,6 +2720,10 @@ class DatabaseService {
     items: { materialName: string; requestedQuantity: number; unit: string; reason: string }[];
     user: User;
   }): { success: boolean; error?: string } {
+    if (params.user.role !== 'MS') {
+      return { success: false, error: 'Chỉ Nhân viên bảo trì mới có quyền lập đề xuất vật tư' };
+    }
+
     const fail = this.data.failures.find((f) => f.id === params.failureReportId);
     if (!fail) return { success: false, error: 'Không tìm thấy sự cố' };
 
@@ -2647,7 +2751,21 @@ class DatabaseService {
       items: formattedItems,
     };
 
+    fail.status = 'WAITING_SUPPLY'; // Phase 1: Chờ duyệt vật tư
     this.data.materialRequests.unshift(req);
+
+    this.addAuditLog({
+      actorId: params.user.id,
+      actorName: params.user.fullName,
+      actorRole: params.user.role,
+      action: 'Đề xuất vật tư bảo trì',
+      entityType: 'MAINTENANCE_MATERIAL_REQUEST',
+      entityId: id,
+      entityCode: code,
+      newState: 'WAITING_SUPPLY',
+      details: `${code}: Đề xuất ${formattedItems.length} loại vật tư cho ${fail.machineName}`,
+    });
+
     this.persist({ ...this.data });
     return { success: true };
   }
@@ -2674,6 +2792,18 @@ class DatabaseService {
       if (!params.rejectionReason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do từ chối' };
       item.status = 'REJECTED';
       item.rejectionReason = params.rejectionReason;
+    }
+
+    // Update Failure Status based on items state
+    const fail = this.data.failures.find((f) => f.id === req.failureReportId);
+    if (fail) {
+      const anyApproved = req.items.some((i) => i.status === 'APPROVED');
+      const allDecided = req.items.every((i) => i.status === 'APPROVED' || i.status === 'REJECTED');
+      if (anyApproved) {
+        fail.status = 'WAITING_FOR_MATERIALS'; // Phase 2: Chờ mua vật tư
+      } else if (allDecided) {
+        fail.status = 'UNDER_REPAIR';
+      }
     }
 
     this.persist({ ...this.data });
@@ -2734,6 +2864,18 @@ class DatabaseService {
     };
     this.data.expenseRecords.unshift(newExp);
 
+    // Update Failure Status to phase 3 or 4:
+    const fail = this.data.failures.find((f) => f.id === req.failureReportId);
+    if (fail) {
+      const approvedItems = req.items.filter((i) => i.status === 'APPROVED');
+      const allPurchased = approvedItems.length > 0 && approvedItems.every((i) => i.isPurchased);
+      if (allPurchased) {
+        fail.status = 'ENOUGH_MATERIALS'; // Phase 4: Đã đủ vật tư
+      } else {
+        fail.status = 'SUPPLYING'; // Phase 3: Đang cung ứng / Chờ bổ sung vật tư
+      }
+    }
+
     this.addAuditLog({
       actorId: params.user.id,
       actorName: params.user.fullName,
@@ -2758,6 +2900,10 @@ class DatabaseService {
     afterImageUrl?: string;
     user: User;
   }): { success: boolean; error?: string } {
+    if (params.user.role !== 'MS') {
+      return { success: false, error: 'Chỉ Nhân viên bảo trì mới có quyền nộp báo cáo hoàn thành sửa chữa' };
+    }
+
     const fail = this.data.failures.find((f) => f.id === params.failureReportId);
     if (!fail) return { success: false, error: 'Không tìm thấy sự cố' };
 
@@ -2778,8 +2924,22 @@ class DatabaseService {
       isManagerApproved: false,
     };
 
-    fail.status = 'UNDER_REPAIR';
+    fail.status = 'PENDING_CONFIRMATION'; // Chờ Quản lý/Owner nghiệm thu
     this.data.maintenanceReports.unshift(report);
+
+    this.addAuditLog({
+      actorId: params.user.id,
+      actorName: params.user.fullName,
+      actorRole: params.user.role,
+      action: 'Nộp báo cáo hoàn thành sửa chữa',
+      entityType: 'MAINTENANCE_REPORT',
+      entityId: report.id,
+      entityCode: fail.code,
+      previousState: 'UNDER_REPAIR',
+      newState: 'PENDING_CONFIRMATION',
+      details: `Kỹ thuật viên ${params.user.fullName} báo cáo hoàn thành sửa chữa ${fail.machineName}`,
+    });
+
     this.persist({ ...this.data });
     return { success: true };
   }
@@ -2803,9 +2963,36 @@ class DatabaseService {
 
       if (fail) fail.status = 'COMPLETED';
       if (machine) machine.status = 'OPERATIONAL';
+
+      this.addAuditLog({
+        actorId: params.user.id,
+        actorName: params.user.fullName,
+        actorRole: params.user.role,
+        action: 'Nghiệm thu bảo trì & Kích hoạt máy',
+        entityType: 'MAINTENANCE_REPORT',
+        entityId: report.id,
+        entityCode: fail?.code,
+        previousState: 'PENDING_CONFIRMATION',
+        newState: 'COMPLETED',
+        details: `Đã nghiệm thu thiết bị ${report.machineName}, máy trở lại trạng thái Đang hoạt động`,
+      });
     } else {
-      if (!params.returnReason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do' };
+      if (!params.returnReason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do trả lại báo cáo' };
       report.returnReason = params.returnReason;
+      if (fail) fail.status = 'UNDER_REPAIR';
+
+      this.addAuditLog({
+        actorId: params.user.id,
+        actorName: params.user.fullName,
+        actorRole: params.user.role,
+        action: 'Trả lại báo cáo bảo trì',
+        entityType: 'MAINTENANCE_REPORT',
+        entityId: report.id,
+        entityCode: fail?.code,
+        previousState: 'PENDING_CONFIRMATION',
+        newState: 'UNDER_REPAIR',
+        reason: params.returnReason,
+      });
     }
 
     this.persist({ ...this.data });
@@ -2969,35 +3156,129 @@ class DatabaseService {
   }
 
   public addSupplier(params: Omit<Supplier, 'id'>, user: User) {
+    if (user.role !== 'O') {
+      return { success: false, error: 'Chỉ Giám đốc (Owner) mới có quyền tạo Nhà cung cấp' };
+    }
     const id = `sup-${Date.now()}`;
-    const sup: Supplier = { ...params, id, totalPurchasedKg: 0, totalPaidVnd: 0 };
+    const sup: Supplier = { ...params, id, totalPurchasedKg: 0, totalPaidVnd: 0, status: 'ACTIVE' };
     this.data.suppliers.push(sup);
+    this.addAuditLog({
+      actorId: user.id,
+      actorName: user.fullName,
+      actorRole: user.role,
+      action: 'Tạo Nhà cung cấp',
+      entityType: 'SUPPLIER',
+      entityId: id,
+      entityCode: sup.code,
+      details: `Tạo NCC ${sup.code} - ${sup.name}`,
+    });
     this.persist({ ...this.data });
-    return { success: true };
+    return { success: true, supplier: sup };
   }
 
   public updateSupplier(id: string, params: Partial<Supplier>, user: User) {
+    if (user.role !== 'O') {
+      return { success: false, error: 'Chỉ Giám đốc (Owner) mới có quyền chỉnh sửa thông tin Nhà cung cấp' };
+    }
     const sup = this.data.suppliers.find((s) => s.id === id);
     if (!sup) return { success: false, error: 'Không tìm thấy NCC' };
     Object.assign(sup, params);
+    this.addAuditLog({
+      actorId: user.id,
+      actorName: user.fullName,
+      actorRole: user.role,
+      action: 'Cập nhật Nhà cung cấp',
+      entityType: 'SUPPLIER',
+      entityId: id,
+      entityCode: sup.code,
+      details: `Cập nhật thông tin NCC ${sup.code} - ${sup.name}`,
+    });
     this.persist({ ...this.data });
     return { success: true };
+  }
+
+  public deactivateSupplier(id: string, user: User) {
+    if (user.role !== 'O') {
+      return { success: false, error: 'Chỉ Giám đốc (Owner) mới có quyền ngừng sử dụng Nhà cung cấp' };
+    }
+    const sup = this.data.suppliers.find((s) => s.id === id);
+    if (!sup) return { success: false, error: 'Không tìm thấy NCC' };
+    sup.status = sup.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    this.addAuditLog({
+      actorId: user.id,
+      actorName: user.fullName,
+      actorRole: user.role,
+      action: sup.status === 'INACTIVE' ? 'Ngừng sử dụng NCC' : 'Kích hoạt lại NCC',
+      entityType: 'SUPPLIER',
+      entityId: id,
+      entityCode: sup.code,
+      details: `${sup.status === 'INACTIVE' ? 'Ngừng sử dụng' : 'Kích hoạt lại'} NCC ${sup.code}`,
+    });
+    this.persist({ ...this.data });
+    return { success: true, newStatus: sup.status };
   }
 
   public addCustomer(params: Omit<Customer, 'id'>, user: User) {
+    if (user.role !== 'O') {
+      return { success: false, error: 'Chỉ Giám đốc (Owner) mới có quyền tạo Khách hàng' };
+    }
     const id = `cus-${Date.now()}`;
-    const cus: Customer = { ...params, id, totalOrderedKg: 0, totalReceivableVnd: 0 };
+    const cus: Customer = { ...params, id, totalOrderedKg: 0, totalReceivableVnd: 0, status: 'ACTIVE' };
     this.data.customers.push(cus);
+    this.addAuditLog({
+      actorId: user.id,
+      actorName: user.fullName,
+      actorRole: user.role,
+      action: 'Tạo Khách hàng',
+      entityType: 'CUSTOMER',
+      entityId: id,
+      entityCode: cus.code,
+      details: `Tạo khách hàng ${cus.code} - ${cus.name}`,
+    });
+    this.persist({ ...this.data });
+    return { success: true, customer: cus };
+  }
+
+  public updateCustomer(id: string, params: Partial<Customer>, user: User) {
+    if (user.role !== 'O') {
+      return { success: false, error: 'Chỉ Giám đốc (Owner) mới có quyền chỉnh sửa thông tin Khách hàng' };
+    }
+    const cus = this.data.customers.find((c) => c.id === id);
+    if (!cus) return { success: false, error: 'Không tìm thấy KH' };
+    Object.assign(cus, params);
+    this.addAuditLog({
+      actorId: user.id,
+      actorName: user.fullName,
+      actorRole: user.role,
+      action: 'Cập nhật Khách hàng',
+      entityType: 'CUSTOMER',
+      entityId: id,
+      entityCode: cus.code,
+      details: `Cập nhật thông tin KH ${cus.code} - ${cus.name}`,
+    });
     this.persist({ ...this.data });
     return { success: true };
   }
 
-  public updateCustomer(id: string, params: Partial<Customer>, user: User) {
+  public deactivateCustomer(id: string, user: User) {
+    if (user.role !== 'O') {
+      return { success: false, error: 'Chỉ Giám đốc (Owner) mới có quyền ngừng sử dụng Khách hàng' };
+    }
     const cus = this.data.customers.find((c) => c.id === id);
     if (!cus) return { success: false, error: 'Không tìm thấy KH' };
-    Object.assign(cus, params);
+    cus.status = cus.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    this.addAuditLog({
+      actorId: user.id,
+      actorName: user.fullName,
+      actorRole: user.role,
+      action: cus.status === 'INACTIVE' ? 'Ngừng sử dụng KH' : 'Kích hoạt lại KH',
+      entityType: 'CUSTOMER',
+      entityId: id,
+      entityCode: cus.code,
+      details: `${cus.status === 'INACTIVE' ? 'Ngừng sử dụng' : 'Kích hoạt lại'} KH ${cus.code}`,
+    });
     this.persist({ ...this.data });
-    return { success: true };
+    return { success: true, newStatus: cus.status };
   }
 
   // Admin Methods
