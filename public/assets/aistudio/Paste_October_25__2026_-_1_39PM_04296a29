@@ -1,0 +1,2359 @@
+# SUPER MASTER PROMPT V6 — BATT PPMS
+# COMPLETE ENTERPRISE WEB APPLICATION — BUSINESS LOGIC, FULL FUNCTIONALITY & MODERN UI/UX
+
+## VAI TRÒ VÀ NHIỆM VỤ CỦA AI
+
+Bạn là một nhóm chuyên gia phát triển phần mềm doanh nghiệp bao gồm:
+
+- Senior Business Analyst (BA)
+- ERP/MES Solution Architect
+- Senior Full-Stack Developer
+- Database Architect
+- Senior UI/UX Product Designer
+- Security Engineer
+- QA Automation Engineer
+- Technical Lead
+
+**NHIỆM VỤ CỦA BẠN: TRỰC TIẾP PHÂN TÍCH, SỬA CHỮA, LẬP TRÌNH, TÍCH HỢP, KIỂM THỬ VÀ HOÀN THIỆN TOÀN BỘ WEBSITE BATT PPMS.**
+
+Đây là hệ thống quản lý quy trình sản xuất dành cho doanh nghiệp thực tế, không phải prototype, demo, tutorial, landing page hoặc website minh họa.
+
+Sản phẩm đã được định hướng bàn giao cho khách hàng có kiến thức nghiệp vụ và biết cách sử dụng. Vì vậy:
+
+**GIAO DIỆN CHỈ ĐƯỢC HIỂN THỊ NHỮNG THÔNG TIN, DỮ LIỆU VÀ HÀNH ĐỘNG THỰC SỰ CẦN THIẾT ĐỂ NGƯỜI DÙNG LÀM VIỆC.**
+
+Không cần giải thích cách sử dụng từng module. Không cần giới thiệu hệ thống. Không cần các phần hướng dẫn thao tác hoặc nội dung giải thích dài dòng.
+
+Yêu cầu cuối cùng:
+
+1. Đúng nghiệp vụ sản xuất BATT.
+2. Đúng phân quyền của từng Actor.
+3. Đúng thứ tự xử lý và phê duyệt.
+4. Đầy đủ chức năng từ đầu đến cuối.
+5. Dữ liệu liên kết chính xác và có thể truy xuất.
+6. Giao diện chuyên nghiệp, trực quan và dễ sử dụng.
+7. Ít thao tác, không có các bước thừa.
+8. Tất cả các nút bấm đều hoạt động.
+9. Không cần F5 sau khi thực hiện thao tác.
+10. Chạy được trên máy tính và trình duyệt.
+11. Có dữ liệu thử nghiệm thực tế để kiểm tra.
+12. Không được tự ý thay đổi những quy tắc nghiệp vụ đã xác nhận.
+
+**ƯU TIÊN: BUSINESS LOGIC → RBAC → DATA INTEGRITY → WORKFLOW → FUNCTIONAL COMPLETENESS → UI/UX → PERFORMANCE.**
+
+---
+
+# PART 1 — PROJECT OVERVIEW
+
+## 1.1. THÔNG TIN DỰ ÁN
+
+Project ID: SEP490_G143
+
+Project Name: BATT Production Process Management System
+
+Abbreviation: BATT PPMS
+
+Vietnamese Name: Hệ thống quản lý quy trình sản xuất Công ty BATT
+
+Company: CÔNG TY CỔ PHẦN NĂNG LƯỢNG TÁI TẠO BATT
+
+Industry: Wood Pellet Manufacturing
+
+Application Type: Internal Enterprise Management Website
+
+Primary Language: Vietnamese
+
+Currency: VND
+
+Đơn vị khối lượng phải được hiển thị rõ và quy đổi nhất quán theo cấu hình được xác nhận.
+
+## 1.2. ĐẶC ĐIỂM DOANH NGHIỆP
+
+BATT là doanh nghiệp sản xuất viên nén gỗ.
+
+Quy trình sản xuất thực tế gồm:
+
+Thu mua NVL → Cân hàng → Duyệt hồ sơ thu mua → Nhập kho NVL → Lập kế hoạch sản xuất → Cấp NVL → Làm sạch → Băm → Nghiền → Sấy → Kiểm tra sau sấy → Ép viên → Đóng bao Jumbo → QC → Nhập kho thành phẩm → Đề xuất xuất hàng → Owner phê duyệt → Xác minh người nhận → Bàn giao → Xuất kho.
+
+Song song với sản xuất còn có:
+
+- Quản lý nhà cung cấp.
+- Quản lý khách hàng.
+- Quản lý máy móc.
+- Báo cáo sự cố.
+- Bảo trì và sửa chữa.
+- Mua vật tư bảo trì.
+- Quản lý nhân viên và phân quyền.
+- Dashboard và báo cáo.
+- Thông báo nội bộ.
+- Quản lý chứng cứ và lịch sử xử lý.
+
+Website phải liên kết tất cả những nghiệp vụ trên thành một hệ thống thống nhất.
+
+Không được thiết kế các chức năng CRUD rời rạc, thiếu quan hệ dữ liệu hoặc không có khả năng thực hiện workflow.
+
+---
+
+# PART 2 — SOURCE CODE & DEVELOPMENT REQUIREMENTS
+
+## 2.1. KIỂM TRA DỰ ÁN HIỆN TẠI
+
+Nếu project đã có mã nguồn:
+
+- Đọc toàn bộ source code.
+- Kiểm tra frontend.
+- Kiểm tra backend.
+- Kiểm tra database.
+- Kiểm tra API.
+- Kiểm tra phân quyền.
+- Kiểm tra business workflows.
+- Kiểm tra các nút bấm và form.
+- Kiểm tra dữ liệu mẫu.
+- Kiểm tra lỗi điều hướng.
+- Kiểm tra chức năng tài khoản.
+- Kiểm tra các giao dịch kho.
+- Kiểm tra sự nhất quán giữa các module.
+
+Giữ lại những phần đang hoạt động đúng.
+
+Sửa những phần sai nghiệp vụ.
+
+Bổ sung chức năng còn thiếu.
+
+Không tự ý xóa hoặc ghi đè dữ liệu cũ.
+
+Nếu chưa có mã nguồn, xây dựng project mới dựa trên toàn bộ đặc tả này.
+
+## 2.2. TECHNOLOGY STACK
+
+Ưu tiên sử dụng kiến trúc hiện tại:
+
+Backend:
+- Python.
+- FastAPI.
+- REST API.
+- Relational database access.
+
+Database:
+- SQLite cho môi trường local.
+- Có cấu trúc hỗ trợ migration và nâng cấp về sau.
+
+Frontend:
+- HTML5.
+- CSS3.
+- JavaScript.
+
+UI:
+- Component-based structure.
+- Reusable components.
+- Responsive design.
+- Consistent design system.
+
+Có thể sử dụng thư viện UI, chart, icon và các tiện ích phù hợp nếu cần.
+
+Không tự thay đổi toàn bộ framework chỉ để làm lại giao diện.
+
+## 2.3. CẤU TRÚC PHẦN MỀM
+
+Phân tách rõ:
+
+- Authentication.
+- Authorization.
+- Business Services.
+- API Routes.
+- Data Models.
+- Database Access.
+- Validation.
+- UI Components.
+- Pages.
+- State Management.
+- Notifications.
+- Audit History.
+- Evidence Management.
+- Tests.
+
+Business logic không được đặt hoàn toàn trong frontend.
+
+Frontend chịu trách nhiệm hiển thị và tương tác.
+
+Backend chịu trách nhiệm xác thực quyền, kiểm tra nghiệp vụ, thực hiện giao dịch và bảo đảm toàn vẹn dữ liệu.
+
+---
+
+# PART 3 — ABSOLUTE BUSINESS PRINCIPLES
+
+## 3.1. KHÔNG CÓ DRAFT
+
+Toàn bộ BATT PPMS không sử dụng:
+
+- Draft.
+- Save Draft.
+- Lưu nháp.
+- Tự động lưu phiếu chưa hoàn thành.
+
+Khi người dùng mở form, dữ liệu chưa được lưu thành hồ sơ nghiệp vụ.
+
+Chỉ sau khi điền đủ thông tin bắt buộc và xác nhận Tạo/Gửi, hệ thống mới lưu.
+
+Nếu đóng form trước khi xác nhận, không tạo bản ghi nghiệp vụ.
+
+Sau khi gửi, hồ sơ không được chỉnh sửa trực tiếp, ngoại trừ trường hợp được trả lại để bổ sung theo đúng quyền.
+
+Hồ sơ Returned phải được sửa trên cùng mã hồ sơ cũ và giữ nguyên lịch sử.
+
+## 3.2. OWNER KẾ THỪA TOÀN BỘ MANAGER
+
+**Owner = Full Manager Business Permissions + Owner Exclusive Permissions.**
+
+Owner được thực hiện tất cả chức năng của Manager.
+
+Owner có thêm các quyền quyết định riêng.
+
+Nhưng Owner không tự động có quyền thực hiện công việc chuyên môn của QC Staff, Warehouse Staff, Purchasing Staff, Production Staff hoặc Maintenance Staff.
+
+Ví dụ:
+
+Owner được duyệt hồ sơ thu mua nhưng không được tự xác nhận nhập kho thay Warehouse Staff.
+
+Owner xem kết quả QC nhưng không tự ghi QC thay nhân viên QC.
+
+Owner được lập kế hoạch và phê duyệt báo cáo sản xuất nhưng không tự tạo báo cáo ca thay Production Staff.
+
+## 3.3. GIỮ NGUYÊN CẤP PHÊ DUYỆT
+
+Những nghiệp vụ yêu cầu Manager phải gửi Owner quyết định vẫn phải giữ bước này.
+
+Ví dụ:
+
+Manager tạo đề xuất xuất hàng → Gửi Owner → Owner quyết định.
+
+Manager không được tự duyệt xuất hàng cuối cùng.
+
+Nếu Owner trực tiếp tạo một đề xuất với quyền kế thừa Manager, tạo đề xuất và phê duyệt vẫn là hai hành động nghiệp vụ riêng biệt.
+
+Hệ thống phải lưu được từng hành động và lịch sử quyết định.
+
+Không tự động gộp tạo và duyệt thành một thao tác.
+
+## 3.4. TÁCH BIỆT PHÊ DUYỆT VÀ GIAO DỊCH VẬT LÝ
+
+Phê duyệt phiếu không đồng nghĩa hoàn tất nghiệp vụ vật lý.
+
+- Duyệt mua không tự tăng tồn NVL.
+- Duyệt báo cáo sản xuất không tự tăng tồn thành phẩm.
+- Duyệt xuất hàng không tự giảm tồn.
+- Duyệt vật tư bảo trì không đồng nghĩa đã mua vật tư.
+
+Tồn kho chỉ thay đổi khi có giao dịch vật lý được xác nhận hợp lệ.
+
+## 3.5. KHÔNG TẠO BUSINESS RULE KHÔNG CÓ CĂN CỨ
+
+Không tự phát minh:
+
+- Công thức hao hụt.
+- Công thức giá thành.
+- Công thức lợi nhuận.
+- Định mức sản xuất.
+- Ngưỡng tự động phân hạng QC.
+- Chính sách đối soát công nợ.
+- Bước phê duyệt bổ sung.
+- Quy tắc điều chỉnh tồn kho.
+- Quy tắc tự duyệt hoặc bỏ duyệt.
+
+Những quy tắc chưa xác nhận phải được đánh dấu `NEEDS_REFINEMENT` trong phần phân tích kỹ thuật.
+
+Không đưa thông báo `NEEDS_REFINEMENT` lên giao diện người dùng cuối.
+
+Khi thiếu quyết định ảnh hưởng đến an toàn giao dịch, không tự cho phép hoàn tất giao dịch đó.
+
+---
+
+# PART 4 — ACTORS & RBAC
+
+## 4.1. DANH SÁCH ACTORS
+
+Hệ thống có 8 Actor:
+
+| Code | Role |
+|---|---|
+| O | Owner |
+| M | Manager |
+| PS | Purchasing Staff |
+| WS | Warehouse Staff |
+| S | Production Staff |
+| QC | QC Staff |
+| MS | Maintenance Staff |
+| A | Admin System |
+
+Supplier và Customer là đối tác bên ngoài, không có tài khoản đăng nhập.
+
+## 4.2. QUYỀN HẠN
+
+Phân quyền theo:
+
+- Role.
+- Module.
+- Function.
+- Action.
+- Record status.
+- Record ownership.
+- Workflow conditions.
+
+Phải phân biệt các action:
+
+- View.
+- Create.
+- Update.
+- Submit.
+- Assign.
+- Approve.
+- Return.
+- Reject.
+- Confirm.
+- Dispatch.
+- Manage.
+
+Không được dùng một quyền Full CRUD để thay thế các quyền nghiệp vụ chuyên biệt.
+
+## 4.3. OWNER
+
+Owner được:
+
+- Xem Dashboard điều hành.
+- Xem báo cáo.
+- Tạo phân công thu mua.
+- Duyệt hồ sơ thu mua.
+- Lập kế hoạch sản xuất.
+- Phân công công nhân.
+- Duyệt báo cáo sản xuất.
+- Xem QC.
+- Xem kho NVL và thành phẩm.
+- Xử lý nghiệp vụ bảo trì thuộc Manager.
+- Duyệt vật tư bảo trì.
+- Tạo đề xuất xuất hàng.
+- Duyệt xuất hàng cuối cùng.
+- Thay đổi Customer theo quyền.
+- Quyết định giá bán.
+- Xử lý sai khác QC xuất hàng.
+- Quản lý máy móc, nhà cung cấp, khách hàng trong phạm vi được xác nhận.
+- Sử dụng toàn bộ nghiệp vụ của Manager.
+
+Không được tự thực hiện các xác nhận vật lý hoặc QC chuyên môn chỉ nhờ vai trò Owner.
+
+## 4.4. MANAGER
+
+Manager được:
+
+- Quản lý thu mua.
+- Tạo phân công thu mua.
+- Duyệt hồ sơ thu mua.
+- Lập kế hoạch.
+- Phân công nhân viên.
+- Duyệt báo cáo ca.
+- Điều phối sản xuất.
+- Theo dõi kho.
+- Tiếp nhận sự cố.
+- Phân công bảo trì.
+- Xác nhận hoàn tất bảo trì.
+- Duyệt vật tư bảo trì.
+- Tạo và chuyển đề xuất xuất hàng cho Owner.
+- Ghi nhận thông tin người nhận hàng.
+- Xem báo cáo điều hành.
+
+Manager không được quyết định xuất hàng cuối cùng.
+
+## 4.5. PURCHASING STAFF
+
+Được:
+
+- Xem phân công thu mua của mình.
+- Ghi kết quả mua trên phân công.
+- Nhập khối lượng cân.
+- Nhập đơn giá.
+- Tải hình ảnh.
+- Gửi hồ sơ.
+- Xem kết quả duyệt.
+- Sửa hồ sơ Returned.
+- Xem lịch sử liên quan.
+
+Không được tự duyệt hồ sơ mua hoặc xác nhận nhập kho.
+
+## 4.6. WAREHOUSE STAFF
+
+Được:
+
+- Xem hồ sơ mua đã duyệt liên quan.
+- Xác nhận nhập kho NVL.
+- Xác nhận cấp NVL.
+- Xem kho NVL.
+- Xem kho thành phẩm.
+- Xem LOT.
+- Xác nhận nhập thành phẩm.
+- Tạo đề xuất xuất hàng theo luồng.
+- Xác minh người nhận.
+- Thực hiện và xác nhận giao hàng.
+- Xem lịch sử giao dịch kho.
+
+Không được duyệt xuất hàng cuối cùng.
+
+## 4.7. PRODUCTION STAFF
+
+Được:
+
+- Xem công việc được giao.
+- Xem lịch sản xuất liên quan.
+- Ghi lượng NVL thực dùng.
+- Ghi sản lượng.
+- Gửi báo cáo ca.
+- Sửa báo cáo Returned.
+- Báo sự cố máy.
+- Theo dõi yêu cầu của mình.
+
+Không được tự duyệt báo cáo.
+
+## 4.8. QC STAFF
+
+Được:
+
+- Xem LOT cần QC.
+- Thực hiện QC theo ca.
+- Ghi thông số.
+- Tải ảnh chứng cứ.
+- Ghi kết quả và phân loại trong phạm vi xác nhận.
+- Thực hiện QC xuất hàng.
+- Xem lịch sử QC.
+
+Không được đưa ra quyết định cuối cùng thay Owner trong trường hợp QC xuất sai khác QC ca.
+
+## 4.9. MAINTENANCE STAFF
+
+Được:
+
+- Xem công việc được phân công.
+- Xem thông tin máy và sự cố.
+- Ghi quá trình sửa chữa.
+- Tạo yêu cầu vật tư.
+- Tải hình ảnh trước/sau.
+- Gửi báo cáo hoàn thành.
+- Theo dõi vật tư.
+
+Không được tự xác nhận hoàn thành thay Manager.
+
+## 4.10. ADMIN SYSTEM
+
+Admin chỉ quản lý tài khoản và quyền truy cập theo chính sách đã xác nhận.
+
+Được:
+
+- Tạo tài khoản.
+- Xem danh sách tài khoản.
+- Cập nhật thông tin quản trị.
+- Gán vai trò/quyền được phép.
+- Khóa/mở khóa tài khoản.
+- Xem lịch sử quản trị trong phạm vi được cấp.
+
+Không được tự động xem:
+
+- Executive Dashboard.
+- Doanh thu hoặc chỉ số kinh doanh.
+- Danh sách sản xuất.
+- Phiếu thu mua.
+- Tồn kho.
+- QC.
+- Đề xuất xuất hàng.
+- Báo cáo vận hành.
+- Thông tin kinh doanh của Supplier/Customer.
+
+Không được cho Admin tự cấp quyền Owner hoặc quyền nghiệp vụ vượt chính sách.
+
+Backend phải từ chối request trái quyền kể cả khi gọi API trực tiếp.
+
+---
+
+# PART 5 — COMPLETE BUSINESS WORKFLOWS
+
+## WF-01 — PURCHASING MANAGEMENT
+
+### 5.1. Tạo phân công thu mua
+
+Actor: Owner/Manager.
+
+Màn hình: Phân công thu mua.
+
+Hiển thị:
+
+- Danh sách phân công.
+- Mã phân công.
+- Nhà cung cấp.
+- Khối lượng dự kiến.
+- Nhân viên thu mua.
+- Ngày dự kiến.
+- Trạng thái.
+- Thao tác.
+
+Nút chính: `Tạo phân công`.
+
+Form gồm:
+
+- Nhà cung cấp hoặc địa điểm thu mua.
+- NVL.
+- Khối lượng dự kiến.
+- Ngày/giờ dự kiến.
+- Nhân viên được phân công.
+- Ghi chú.
+
+Khối lượng dự kiến đối với phân công mới là trường bắt buộc, phải lớn hơn 0.
+
+Nhà cung cấp được chọn từ danh mục, không nhập ID.
+
+Sau khi xác nhận, lưu một phân công có trạng thái Assigned.
+
+Không có bước Manager duyệt trước khi Purchasing Staff được đi mua.
+
+### 5.2. Ghi kết quả thu mua
+
+Actor: Purchasing Staff.
+
+Nhân viên mở chính phân công được giao.
+
+Nút: `Ghi kết quả thu mua`.
+
+Không tạo thêm một đơn mua mới độc lập.
+
+Form kế thừa thông tin phân công:
+
+- Mã phân công.
+- Nhà cung cấp.
+- NVL.
+- Khối lượng dự kiến.
+
+Nhân viên bổ sung:
+
+- Khối lượng cân thực tế.
+- Đơn giá.
+- Tổng giá trị.
+- Ngày/giờ cân.
+- Phiếu cân.
+- Hóa đơn.
+- Hình ảnh.
+- Ghi chú.
+
+Tổng giá trị = Khối lượng thực tế × Đơn giá theo đơn vị và độ chính xác của giao dịch.
+
+Không tự suy ra thanh toán, công nợ hoặc lợi nhuận.
+
+Sau khi gửi:
+
+- Trạng thái Submitted.
+- Thông báo Owner/Manager.
+- Không tăng tồn kho.
+
+Một phân công không được tạo nhiều kết quả mua trùng nhau.
+
+### 5.3. Duyệt thu mua
+
+Actor: Owner/Manager.
+
+Màn hình chi tiết hiển thị:
+
+- Thông tin phân công.
+- Kết quả thực tế.
+- Giá trị.
+- Ảnh phiếu cân.
+- Hóa đơn.
+- Lịch sử.
+
+Chỉ có các action hợp lệ:
+
+- `Phê duyệt`.
+- `Trả lại`.
+- `Từ chối`.
+
+**Các action phải là các button riêng, tuyệt đối không dùng combobox.**
+
+Nếu Trả lại:
+
+- Bắt nhập lý do.
+- Nhân viên được sửa đúng hồ sơ.
+- Gửi lại trên cùng mã.
+- Giữ lịch sử và chứng cứ.
+
+Nếu Từ chối:
+
+- Bắt nhập lý do.
+- Ghi nhận quyết định.
+- Không được đi tiếp nhập kho.
+
+Nếu Phê duyệt:
+
+- Chuyển sang bước chờ kho nhận.
+- Không tự tăng tồn.
+
+### 5.4. Nhập kho NVL
+
+Actor: Warehouse Staff.
+
+Chỉ cho tiếp nhận hồ sơ mua Approved.
+
+Hiển thị thông tin mua và chứng từ liên quan.
+
+Nhân viên nhập:
+
+- Khối lượng thực nhận.
+- Thời gian.
+- Ghi chú.
+- Nguyên nhân chênh lệch nếu có.
+
+Tách biệt:
+
+- Planned Quantity.
+- Purchased/Weighed Quantity.
+- Received Quantity.
+
+Khi chênh lệch vượt ra ngoài điều kiện được xác nhận, giữ giao dịch chờ xử lý; không tự duyệt ngoại lệ.
+
+Chỉ sau khi Warehouse Staff xác nhận nhận hàng hợp lệ:
+
+- Tạo stock movement.
+- Cập nhật kho NVL.
+- Ghi người và thời gian.
+- Không cho xác nhận hai lần.
+
+---
+
+## WF-02 — PRODUCTION PLANNING
+
+Actor: Owner/Manager.
+
+Màn hình: Kế hoạch sản xuất.
+
+Hiển thị:
+
+- Mã kế hoạch.
+- Ngày.
+- Ca.
+- Sản phẩm.
+- Sản lượng mục tiêu.
+- Tiến độ.
+- Trạng thái.
+- Người tạo.
+- Thao tác.
+
+Nút: `Tạo kế hoạch`.
+
+Form:
+
+- Ngày sản xuất.
+- Ca sản xuất.
+- Sản phẩm.
+- Sản lượng mục tiêu.
+- Công đoạn.
+- Máy móc.
+- Nhân viên.
+- Công việc.
+- Ghi chú.
+
+Chọn máy từ danh mục máy khả dụng.
+
+Chọn nhân viên từ danh sách thực tế.
+
+Hỗ trợ một kế hoạch có nhiều nhiệm vụ/phân công khi nghiệp vụ yêu cầu.
+
+Các công đoạn:
+
+1. Làm sạch.
+2. Băm.
+3. Nghiền.
+4. Sấy.
+5. Kiểm tra sau sấy.
+6. Ép viên.
+7. Đóng bao Jumbo.
+
+Sau khi tạo, công việc hiển thị cho Production Staff được phân công.
+
+Không tạo nhiệm vụ trùng ngoài ý muốn.
+
+Không xóa lịch sử thay đổi phân công.
+
+Hiển thị họ tên người tạo, không hiển thị ID.
+
+---
+
+## WF-03 — RAW MATERIAL ISSUING
+
+Actor: Warehouse Staff.
+
+Màn hình: Cấp NVL.
+
+Chọn kế hoạch sản xuất có liên quan.
+
+Thông tin:
+
+- Kế hoạch.
+- NVL.
+- Lượng cấp.
+- Bộ phận nhận.
+- Thời gian.
+
+Kiểm tra tồn khả dụng.
+
+Không cho xuất vượt tồn.
+
+Tồn kho NVL giảm khi Warehouse Staff xác nhận cấp thực tế.
+
+Lượng cấp và lượng sử dụng trong báo cáo ca phải được lưu riêng.
+
+Không trừ kho lần thứ hai khi Production Staff báo lượng thực dùng.
+
+---
+
+## WF-04 — PRODUCTION SHIFT REPORT
+
+Actor: Production Staff.
+
+Màn hình: Báo cáo sản xuất.
+
+Nhân viên chỉ xem công việc của mình hoặc dữ liệu có quyền.
+
+Mở phân công và ghi:
+
+- Ngày/ca.
+- Máy.
+- Công đoạn.
+- NVL thực dùng.
+- Sản lượng thực tế.
+- Trạng thái công việc.
+- Sự cố.
+- Hình ảnh.
+- Ghi chú.
+
+Nút: `Gửi báo cáo`.
+
+Sau khi gửi, Owner/Manager được xem xét.
+
+Các action theo workflow:
+
+- `Phê duyệt`.
+- `Trả lại`.
+- `Từ chối` nếu nhánh từ chối được xác nhận.
+
+Returned cho phép sửa và gửi lại cùng mã báo cáo.
+
+Không nhân đôi sản lượng khi duyệt lại.
+
+Kết quả được dùng để liên kết LOT và QC.
+
+Không tự cộng kho thành phẩm khi chỉ duyệt báo cáo.
+
+---
+
+## WF-05 — QUALITY CONTROL
+
+Actor: QC Staff.
+
+Màn hình: QC theo ca.
+
+Mỗi LOT có ba lần kiểm tra độc lập.
+
+Hiển thị:
+
+- Mã LOT.
+- Ngày/ca.
+- Sản lượng.
+- Grade nếu đã xác nhận.
+- Số lần QC đã thực hiện.
+- Trạng thái.
+- Thao tác.
+
+Chi tiết LOT:
+
+### QC lần 1
+- Thời gian.
+- Độ ẩm.
+- Độ tro.
+- Tạp chất.
+- Chỉ tiêu liên quan.
+- Ảnh.
+- Ghi chú.
+
+### QC lần 2
+Các trường tương ứng.
+
+### QC lần 3
+Các trường tương ứng.
+
+Không cho ghi trùng một lần QC khi chưa có quyền kiểm tra lại.
+
+Sau khi đủ ba lần hợp lệ, hệ thống ghi nhận trạng thái hoàn tất QC theo các điều kiện đã xác nhận.
+
+Grade A và Grade B đều có thể bán.
+
+Không mặc định Grade B là hàng hỏng.
+
+Không tự tính Grade theo ngưỡng chưa được duyệt.
+
+Trường hợp cần sấy lại hoặc kiểm tra lại phải giữ lịch sử kết quả trước đó.
+
+Owner/Manager được xem thông tin QC nhưng không tự nhập kết quả thay QC Staff.
+
+---
+
+## WF-06 — FINISHED GOODS INVENTORY
+
+Actor: Warehouse Staff.
+
+Màn hình: Kho thành phẩm.
+
+Hiển thị:
+
+- LOT.
+- Ngày sản xuất.
+- Sản phẩm.
+- Grade.
+- Khối lượng.
+- Số bao nếu có.
+- Tồn khả dụng.
+- Trạng thái.
+- Thao tác.
+
+Chỉ LOT đủ điều kiện mới được nhận vào kho.
+
+Warehouse Staff kiểm tra và xác nhận nhập thành phẩm.
+
+Chỉ sau xác nhận nhập kho vật lý mới tăng tồn.
+
+Mỗi LOT phải truy xuất được:
+
+Production Plan → Shift Report → QC Tests → Warehouse Receipt → Outbound/Dispatch.
+
+Không tạo kho bán thành phẩm riêng khi chưa có yêu cầu được xác nhận.
+
+---
+
+## WF-07 — OUTBOUND PROPOSAL
+
+Hỗ trợ hai luồng.
+
+### Luồng A
+
+Warehouse Staff tạo đề xuất.
+
+Manager xem xét và chuyển cho Owner.
+
+Owner quyết định cuối cùng.
+
+### Luồng B
+
+Manager tạo đề xuất.
+
+Manager gửi trực tiếp Owner.
+
+Owner quyết định.
+
+Owner được tạo đề xuất theo quyền Manager nhưng quyết định phê duyệt phải được ghi thành bước riêng.
+
+Form:
+
+- Customer.
+- Sản phẩm.
+- LOT hoặc danh sách LOT phù hợp.
+- Grade.
+- Khối lượng dự kiến.
+- Thông tin giá theo quyền.
+- Ghi chú.
+
+Customer phải chọn từ danh mục.
+
+LOT phải chọn từ danh sách hợp lệ.
+
+Owner được:
+
+- Xem đề xuất.
+- Xem tồn.
+- Xem kết quả QC.
+- Đổi Customer.
+- Đặt hoặc điều chỉnh giá bán.
+- Phê duyệt.
+- Trả lại.
+- Từ chối.
+
+Nếu Owner đổi Customer, giữ đề xuất hiện hữu và lịch sử khách ban đầu.
+
+Không tạo proposal mới chỉ vì đổi Customer.
+
+Manager không được thay quyết định cuối cùng của Owner.
+
+Trước quyết định cuối cùng, phải xử lý thông tin outbound QC theo đúng workflow đã xác nhận.
+
+---
+
+## WF-08 — OUTBOUND QC
+
+Actor: QC Staff.
+
+QC xuất hàng được ghi riêng với QC theo ca.
+
+Không ghi đè kết quả QC gốc của LOT.
+
+Liên kết kết quả QC xuất với:
+
+- Outbound Proposal.
+- LOT.
+- Kết quả QC theo ca.
+- Ảnh chứng cứ.
+- Người thực hiện.
+- Thời gian.
+
+Nếu kết quả QC xuất khác QC theo ca, Owner quyết định:
+
+- Chấp thuận xuất hàng.
+- Yêu cầu kiểm tra thêm.
+- Không chấp thuận xuất.
+
+Lưu lịch sử quyết định và chứng cứ.
+
+Không tự đặt ngưỡng sai khác nếu chưa được duyệt.
+
+---
+
+## WF-09 — PICKUP & DISPATCH
+
+Sau khi Owner phê duyệt, Manager liên hệ Customer ngoài hệ thống.
+
+Manager ghi:
+
+- Họ tên người nhận.
+- Số điện thoại.
+- Biển số xe.
+- Thời gian nhận hàng.
+
+Warehouse Staff kiểm tra thực tế.
+
+Nếu thông tin không trùng:
+
+- Không cho giao hàng.
+- Ghi nhận mismatch.
+- Chuyển Manager xử lý.
+
+Nếu hợp lệ:
+
+- Chọn LOT theo FIFO.
+- Kiểm tra số lượng.
+- Nhập khối lượng thực giao.
+- Gắn ảnh/chứng từ.
+- Xác nhận bàn giao.
+
+Tồn thành phẩm chỉ giảm sau xác nhận dispatch thực tế.
+
+Không cho giao trùng.
+
+Không tự xuất vượt khối lượng tồn khả dụng.
+
+Không tự coi mọi chênh lệch giữa lượng duyệt và lượng giao là hợp lệ.
+
+---
+
+## WF-10 — MACHINE FAILURE REPORTING
+
+Actor: Production Staff theo quyền.
+
+Màn hình: Sự cố máy móc.
+
+Nút: `Báo sự cố`.
+
+Form:
+
+- Máy.
+- Thời gian.
+- Hiện tượng.
+- Mức độ ảnh hưởng.
+- Ảnh máy.
+- Ghi chú.
+
+Sau khi gửi, Owner/Manager nhận yêu cầu.
+
+Action:
+
+- `Tiếp nhận và phân công`.
+- `Từ chối`.
+
+Nếu tiếp nhận, chọn Maintenance Staff ngay trong cùng một thao tác.
+
+Không tạo hai bước phê duyệt độc lập.
+
+Nếu từ chối phải có lý do.
+
+Thiết bị gặp sự cố phải được phản ánh trạng thái phù hợp với mức độ ảnh hưởng đã xác nhận.
+
+---
+
+## WF-11 — MAINTENANCE EXECUTION
+
+Actor: Maintenance Staff.
+
+Màn hình: Công việc bảo trì.
+
+Hiển thị:
+
+- Máy.
+- Sự cố.
+- Nhân viên được giao.
+- Ngày giao.
+- Trạng thái.
+- Thao tác.
+
+Nhân viên ghi:
+
+- Nguyên nhân.
+- Công việc thực hiện.
+- Vật tư sử dụng.
+- Kết quả.
+- Ảnh trước.
+- Ảnh sau.
+- Thời gian.
+
+Nút: `Gửi báo cáo hoàn thành`.
+
+Owner/Manager xem xét và xác nhận hoàn tất hoặc trả lại theo quyền.
+
+Không cho nhân viên bảo trì tự phê duyệt báo cáo.
+
+Máy chỉ trở lại trạng thái hoạt động khi đáp ứng điều kiện vận hành và an toàn được xác nhận.
+
+---
+
+## WF-12 — MAINTENANCE MATERIAL REQUEST
+
+Actor: Maintenance Staff.
+
+Tạo yêu cầu vật tư ngay từ công việc bảo trì.
+
+Một yêu cầu có nhiều item.
+
+Mỗi item:
+
+- Tên vật tư.
+- Số lượng.
+- Đơn vị tính.
+- Lý do.
+- Ghi chú.
+
+Owner/Manager quyết định theo từng item.
+
+Mỗi dòng có hai button action:
+
+- `Phê duyệt`.
+- `Từ chối`.
+
+Nếu từ chối phải nhập lý do cho chính dòng đó.
+
+Có thể duyệt một phần.
+
+Phê duyệt không tự tạo nghiệp vụ mua hoặc nhập vật tư.
+
+Theo dõi riêng trạng thái:
+
+- Chờ duyệt.
+- Đã duyệt.
+- Bị từ chối.
+- Chờ cung ứng.
+- Đã được cung ứng.
+
+Chỉ sử dụng những trạng thái có ý nghĩa và transition được xác nhận.
+
+---
+
+## WF-13 — MACHINE MANAGEMENT
+
+Màn hình: Máy móc.
+
+Chức năng:
+
+- Tạo máy.
+- Xem danh sách.
+- Xem chi tiết.
+- Cập nhật.
+- Thay đổi trạng thái.
+- Xem lịch sử.
+
+Thông tin:
+
+- Mã máy.
+- Tên máy.
+- Loại máy.
+- Vị trí.
+- Tình trạng.
+- Ngày đưa vào sử dụng.
+- Lịch sử sự cố.
+- Lịch sử bảo trì.
+
+Không xóa máy có lịch sử nghiệp vụ.
+
+Ngừng sử dụng bằng thay đổi trạng thái theo quyền.
+
+Máy không khả dụng không được lựa chọn cho kế hoạch mới.
+
+---
+
+## WF-14 — SUPPLIER & CUSTOMER MANAGEMENT
+
+Màn hình Nhà cung cấp và Khách hàng.
+
+Chức năng theo quyền:
+
+- Tạo.
+- Xem.
+- Cập nhật.
+- Ngừng sử dụng.
+- Xem lịch sử giao dịch.
+
+Supplier:
+
+- Mã.
+- Tên.
+- Số điện thoại.
+- Địa chỉ.
+- Người liên hệ.
+- Trạng thái.
+
+Customer:
+
+- Mã.
+- Tên.
+- Số điện thoại.
+- Địa chỉ.
+- Người liên hệ.
+- Trạng thái.
+
+Không xóa vĩnh viễn dữ liệu đã phát sinh giao dịch.
+
+Trong các form nghiệp vụ, luôn chọn đối tác từ danh mục hiện có.
+
+Không yêu cầu nhập ID kỹ thuật.
+
+---
+
+## WF-15 — AUTHENTICATION & ACCOUNT
+
+Phải có đầy đủ:
+
+### Login
+- Username.
+- Password.
+- Kiểm tra trạng thái tài khoản.
+- Kiểm tra xác thực.
+- Điều hướng theo quyền.
+
+### Update Profile
+- Họ tên.
+- Thông tin liên hệ.
+- Avatar.
+- Preview avatar.
+- Validate.
+- Lưu.
+- Cập nhật ngay trên giao diện.
+
+### Change Password
+- Mật khẩu hiện tại.
+- Mật khẩu mới.
+- Xác nhận mật khẩu.
+- Validate.
+- Hash mật khẩu.
+- Lưu và thông báo kết quả.
+
+### Forgot/Reset Password
+- Nhập tài khoản.
+- Xác minh OTP.
+- Đặt mật khẩu mới.
+- Xác nhận.
+- Đăng nhập lại.
+
+OTP thử nghiệm `123` chỉ được bật ở môi trường local test được cấu hình rõ; không hiển thị/gợi ý trên UI.
+
+Không được dùng OTP cố định khi triển khai production.
+
+Production phải có OTP an toàn qua nhà cung cấp phù hợp; nếu chưa tích hợp thì không giả vờ đã gửi mã.
+
+### Logout
+- Kết thúc phiên.
+- Hủy hiệu lực thông tin xác thực theo cơ chế đang dùng.
+- Quay về Login.
+
+Các modal Account phải hoạt động ngay, không cần F5.
+
+---
+
+## WF-16 — USER & PERMISSION ADMINISTRATION
+
+Actor: Admin.
+
+Màn hình: Quản lý tài khoản.
+
+Chức năng:
+
+- Tạo tài khoản.
+- Xem danh sách.
+- Cập nhật thông tin.
+- Gán vai trò.
+- Cấu hình quyền theo chính sách.
+- Khóa tài khoản.
+- Mở khóa.
+- Xem audit liên quan.
+
+Không cho Admin có quyền nghiệp vụ chỉ vì là người quản trị hệ thống.
+
+Không được tự cấp quyền vượt chính sách.
+
+---
+
+## WF-17 — DASHBOARD & NOTIFICATIONS
+
+Dashboard theo vai trò.
+
+### Owner Dashboard
+
+Chỉ số và công việc liên quan đến:
+
+- Thu mua.
+- Kho NVL.
+- Sản xuất.
+- QC.
+- LOT.
+- Kho thành phẩm.
+- Xuất hàng.
+- Máy móc.
+- Bảo trì.
+- Hồ sơ cần duyệt.
+
+Owner cũng nhìn thấy công việc thuộc phạm vi Manager mà Owner được quyền thực hiện.
+
+### Manager Dashboard
+
+- Kế hoạch sản xuất.
+- Phiếu mua chờ duyệt.
+- Báo cáo ca chờ xử lý.
+- Tồn kho liên quan.
+- Máy hỏng.
+- Yêu cầu bảo trì.
+- Đề xuất xuất hàng.
+
+### Purchasing Dashboard
+
+- Phân công của tôi.
+- Chờ ghi kết quả.
+- Phiếu đã gửi.
+- Phiếu Returned.
+
+### Warehouse Dashboard
+
+- NVL chờ nhận.
+- Cấp NVL.
+- Tồn NVL.
+- LOT chờ nhập.
+- Tồn thành phẩm.
+- Hàng chờ giao.
+
+### Production Dashboard
+
+- Công việc được giao.
+- Báo cáo ca.
+- Báo cáo Returned.
+- Sự cố đã gửi.
+
+### QC Dashboard
+
+- LOT cần kiểm tra.
+- QC đang thực hiện.
+- QC hoàn tất.
+- QC xuất hàng.
+
+### Maintenance Dashboard
+
+- Việc được giao.
+- Việc đang thực hiện.
+- Vật tư chờ duyệt/cung ứng.
+- Báo cáo đã gửi.
+
+### Admin Dashboard
+
+Chỉ có:
+
+- Tổng tài khoản.
+- Tài khoản Active.
+- Tài khoản Locked.
+- Phân bố vai trò.
+- Hoạt động quản trị được phép.
+
+Không hiển thị dữ liệu kinh doanh.
+
+### Notifications
+
+Thông báo khi có:
+
+- Phân công mới.
+- Hồ sơ chờ duyệt.
+- Hồ sơ Returned.
+- Quyết định phê duyệt.
+- QC cần thực hiện.
+- Hàng chờ nhận/giao.
+- Sự cố.
+- Yêu cầu bảo trì.
+- Yêu cầu vật tư.
+
+Click thông báo phải mở đúng hồ sơ có quyền truy cập.
+
+---
+
+## WF-18 — EVIDENCE & AUDIT HISTORY
+
+Hình ảnh/chứng từ phải gắn đúng hồ sơ.
+
+Cho phép:
+
+- Upload.
+- Preview.
+- Xem thumbnail.
+- Click phóng lớn.
+- Xem nhiều ảnh.
+- Đóng ảnh.
+- Xem lịch sử chứng cứ.
+
+Audit ghi:
+
+- Người thực hiện.
+- Hành động.
+- Thời gian.
+- Hồ sơ.
+- Trạng thái trước/sau.
+- Lý do xử lý.
+
+Không làm mất lịch sử khi Returned rồi gửi lại.
+
+Không làm mất chứng cứ đã gắn với hồ sơ hoàn tất.
+
+File riêng tư phải được kiểm tra quyền truy cập.
+
+---
+
+# PART 6 — FINAL UI/UX DESIGN REQUIREMENTS
+
+## 6.1. NGUYÊN TẮC THIẾT KẾ
+
+**BATT PPMS LÀ WEBSITE DOANH NGHIỆP ĐÃ BÀN GIAO, KHÔNG PHẢI WEBSITE DEMO.**
+
+Người dùng đã biết nghiệp vụ và biết cách sử dụng.
+
+Không xây dựng các màn hình giải thích hoặc hướng dẫn.
+
+Chỉ hiển thị:
+
+- Thông tin cần xem.
+- Dữ liệu cần nhập.
+- Trạng thái cần biết.
+- Hành động có quyền.
+- Cảnh báo cần xử lý.
+- Kết quả nghiệp vụ.
+- Lịch sử cần tra cứu.
+
+Mọi thành phần không phục vụ một trong các mục đích trên phải được xem xét loại bỏ.
+
+## 6.2. BẮT BUỘC LOẠI BỎ
+
+Không hiển thị:
+
+- Welcome to BATT.
+- Getting Started.
+- Quick Start.
+- User Guide.
+- Tutorial.
+- Help cards.
+- Business Story descriptions.
+- Workflow explanation banners.
+- Module introduction.
+- Role permission explanation.
+- Demo Mode.
+- Test Mode.
+- Sample Data labels trên bản bàn giao.
+- Technical documentation.
+- API information.
+- Database details.
+- Developer notes.
+- Debug panels.
+- Placeholder functions.
+- Hướng dẫn bằng nhiều bước ngay trên trang.
+- Đoạn văn dài giải thích cách sử dụng.
+
+Không hiển thị các dòng như:
+
+"Đây là nơi bạn có thể quản lý kế hoạch sản xuất của doanh nghiệp."
+
+Chỉ cần tiêu đề:
+
+**Kế hoạch sản xuất**
+
+Không viết:
+
+"Nhấn nút bên dưới để tạo phiếu thu mua."
+
+Chỉ cần button:
+
+**Tạo phân công**
+
+Không viết:
+
+"Bạn có thể xem và phê duyệt những phiếu đang chờ được xử lý."
+
+Chỉ cần:
+
+**Chờ duyệt**
+
+Không xóa những nhãn cần thiết để nhập liệu chính xác.
+
+Không xóa lỗi validation, trạng thái nghiệp vụ, lý do từ chối, xác nhận giao dịch quan trọng hoặc cảnh báo an toàn.
+
+## 6.3. DESIGN SYSTEM
+
+Thiết kế theo phong cách:
+
+**Modern Minimal Enterprise ERP Dashboard.**
+
+Định hướng:
+
+- Clean.
+- Professional.
+- Minimal.
+- Premium.
+- Data-driven.
+- Consistent.
+- Responsive.
+- Fast.
+
+Màu sắc gợi ý:
+
+Primary: Indigo / Blue.
+
+Success: Green.
+
+Warning: Amber.
+
+Danger: Red.
+
+Information: Cyan.
+
+Neutral: Slate.
+
+Background: Light Gray.
+
+Card Background: White.
+
+Sử dụng hệ màu có độ tương phản tốt và nhất quán.
+
+Không dùng quá nhiều màu sắc trong cùng một màn hình.
+
+Màu đậm dành cho:
+
+- Primary actions.
+- Status.
+- Alerts.
+- Important KPIs.
+
+Typography rõ ràng, chuyên nghiệp.
+
+Sử dụng icon thống nhất.
+
+Độ bo góc vừa phải.
+
+Shadow nhẹ.
+
+Không tạo các card lớn chỉ để trang trí.
+
+Không lãng phí không gian.
+
+## 6.4. SIDEBAR
+
+Sidebar phải:
+
+- Chỉ hiển thị menu theo quyền.
+- Có icon.
+- Có tên rõ ràng.
+- Có trạng thái active.
+- Có nhóm menu hợp lý.
+- Hỗ trợ thu gọn.
+- Hỗ trợ mobile.
+
+Khi mở một nhóm sidebar, nhóm khác tự đóng.
+
+Không hiển thị tất cả các nhóm mở cùng lúc.
+
+Không tạo menu cho những chức năng không thuộc quyền.
+
+Không thêm menu hướng dẫn hoặc demo.
+
+Đề xuất menu dựa trên vai trò, không bắt buộc mọi vai trò đều có các mục sau:
+
+- Tổng quan.
+- Thu mua.
+- Kho NVL.
+- Sản xuất.
+- QC.
+- Kho thành phẩm.
+- Xuất hàng.
+- Bảo trì.
+- Máy móc.
+- Nhà cung cấp.
+- Khách hàng.
+- Báo cáo.
+- Quản trị tài khoản.
+
+Menu có thể được nhóm lại khi hợp lý để tránh sidebar quá dài.
+
+## 6.5. TOPBAR
+
+Topbar chỉ cần:
+
+- Breadcrumb ngắn hoặc tiêu đề điều hướng khi hữu ích.
+- Thông báo.
+- Avatar.
+- Tên người dùng.
+- Account menu.
+
+Account menu:
+
+- Hồ sơ cá nhân.
+- Đổi mật khẩu.
+- Đăng xuất.
+
+Không hiển thị các đoạn giải thích về vai trò.
+
+Không hiển thị mã kỹ thuật tài khoản khi không cần.
+
+## 6.6. DASHBOARD UI
+
+Dashboard phải tập trung vào công việc thực tế.
+
+Bố cục ưu tiên:
+
+1. KPI quan trọng.
+2. Công việc cần xử lý.
+3. Biểu đồ vận hành có giá trị.
+4. Dữ liệu/cảnh báo cần chú ý.
+
+Không cần các Welcome Banner.
+
+Không cần các card hướng dẫn.
+
+Không tạo biểu đồ chỉ để lấp chỗ trống.
+
+Không hiển thị KPI mà hệ thống không có dữ liệu đáng tin cậy.
+
+KPI phải cập nhật theo giao dịch thực tế.
+
+## 6.7. LIST SCREEN
+
+Mỗi danh sách chỉ cần:
+
+- Tiêu đề.
+- Nút tạo khi có quyền.
+- Search.
+- Filters.
+- Data table.
+- Pagination.
+
+Ví dụ màn hình Thu mua:
+
+Tiêu đề: **Phân công thu mua**
+
+Nút: **Tạo phân công**
+
+Bảng:
+
+| Mã phiếu | Nhà cung cấp | Dự kiến | Thực tế | Nhân viên | Trạng thái | Thao tác |
+|---|---|---|---|---|---|---|
+
+Màn hình không cần giải thích cách phân công hoặc cách ghi kết quả.
+
+Bảng cần:
+
+- Cột phù hợp.
+- Không quá nhiều cột dư thừa.
+- Sorting khi cần.
+- Search.
+- Status badge.
+- Pagination.
+- Empty state.
+- Loading state.
+- Row actions.
+
+## 6.8. DETAIL SCREEN
+
+Mỗi hồ sơ có một màn hình chi tiết thống nhất.
+
+Không tạo nhiều tab chỉ để chia nhỏ thông tin.
+
+Ví dụ chi tiết thu mua:
+
+**Thông tin phân công**
+
+**Kết quả thu mua**
+
+**Chứng từ**
+
+**Lịch sử xử lý**
+
+**Hành động được phép**
+
+Các section phải gọn.
+
+Không hiển thị thông tin lặp đi lặp lại.
+
+Không hiển thị raw JSON.
+
+Không hiển thị User ID dưới dạng `created_by = 2`.
+
+Hiển thị họ tên.
+
+Nếu người dùng mở detail route, hỗ trợ nút Back của trình duyệt.
+
+Nếu dùng modal hoặc drawer, có nút Đóng.
+
+Không bắt buộc tạo nút Quay về riêng.
+
+Nếu hồ sơ dài, bố trí rõ phần tóm tắt và phần xử lý.
+
+## 6.9. FORMS
+
+Form phải:
+
+- Nhập liệu nhanh.
+- Có label rõ ràng.
+- Có validation.
+- Sử dụng select với dữ liệu có sẵn.
+- Có tìm kiếm khi danh sách dài.
+- Tự điền thông tin đã biết từ hồ sơ liên quan.
+- Không bắt nhập lại dữ liệu.
+- Không yêu cầu nhập ID.
+- Không hiển thị mô tả dài cho mỗi trường.
+- Có đơn vị đo.
+- Định dạng tiền và số đúng.
+- Có upload và preview ảnh.
+- Hiển thị lỗi tại trường tương ứng.
+
+Sắp xếp thông tin theo thứ tự thực tế.
+
+Ví dụ:
+
+Nhân viên đã được phân công Supplier A thì khi ghi kết quả mua, Supplier A phải được điền sẵn.
+
+Không bắt chọn lại nhà cung cấp nếu không có quyền thay đổi.
+
+Không tạo thao tác dư thừa.
+
+## 6.10. ACTION BUTTONS
+
+Đây là yêu cầu bắt buộc.
+
+Các hành động quyết định phải là nút riêng.
+
+Ví dụ:
+
+**Phê duyệt | Trả lại | Từ chối**
+
+Không dùng combobox quyết định.
+
+Không dùng một dropdown chứa các quyết định chính nếu có thể hiển thị trực tiếp.
+
+Màu sắc:
+
+- Phê duyệt: Green.
+- Trả lại: Amber/Orange.
+- Từ chối: Red.
+- Xác nhận: Primary.
+- Hủy: Neutral.
+
+Nút chỉ được xuất hiện khi:
+
+- Người dùng có quyền.
+- Hồ sơ ở đúng trạng thái.
+- Điều kiện thao tác đã được đáp ứng.
+
+Không hiển thị các nút vô hiệu không liên quan tới người dùng.
+
+Nếu có hành động bị vô hiệu do điều kiện chưa đáp ứng nhưng người dùng cần hiểu lý do, hiển thị thông tin ngắn gọn đúng ngữ cảnh.
+
+Khi chọn Trả lại hoặc Từ chối, mở dialog nhập lý do.
+
+Không sử dụng confirm dialog quá mức cho thao tác không có rủi ro.
+
+## 6.11. MODAL & DRAWER
+
+Modal phải:
+
+- Nằm giữa màn hình.
+- Có overlay.
+- Có tiêu đề.
+- Có nút đóng.
+- Có nút thao tác rõ ràng.
+- Có loading state.
+- Không vượt viewport.
+- Hỗ trợ scroll nội dung.
+- Có focus management phù hợp.
+
+Không dùng modal lớn cho những form có thể thiết kế gọn.
+
+Những form dài có thể dùng trang riêng hoặc drawer nếu phù hợp.
+
+## 6.12. TABLE & PAGINATION
+
+Pagination đẹp, gọn, nhất quán.
+
+Cho phép:
+
+- Chuyển trang.
+- Chọn số dòng khi hữu ích.
+- Xem tổng số kết quả.
+- Giữ bộ lọc khi chuyển trang.
+
+Không cần refresh.
+
+Không bị mất trang hoặc bộ lọc ngoài ý muốn sau khi xem chi tiết.
+
+## 6.13. RESPONSIVE
+
+Hỗ trợ tốt:
+
+- Desktop 1440px.
+- Laptop 1024px.
+- Tablet 768px.
+- Mobile 375px.
+
+Không tràn ngang toàn trang.
+
+Bảng dài có phương án hiển thị phù hợp.
+
+Sidebar dùng drawer trên mobile.
+
+Form không bị cắt.
+
+Modal không vượt màn hình.
+
+Các nút vẫn dễ thao tác bằng cảm ứng.
+
+## 6.14. ANIMATION
+
+Animation phải nhẹ và có mục đích:
+
+- Fade.
+- Subtle slide.
+- Hover state.
+- Modal transition.
+- Sidebar collapse.
+- Toast animation.
+- Loading skeleton.
+
+Không dùng hiệu ứng phức tạp, kéo dài hoặc làm chậm thao tác.
+
+Ưu tiên tốc độ xử lý và sự ổn định.
+
+---
+
+# PART 7 — FIX ALL INTERACTIONS
+
+## 7.1. KHÔNG ĐƯỢC CẦN F5
+
+Website trước đây có tình trạng:
+
+- Click button không phản hồi.
+- Chuyển trang thì nút mất tác dụng.
+- Tạo hồ sơ xong danh sách chưa cập nhật.
+- Duyệt hồ sơ xong Dashboard không thay đổi.
+- Account modal không mở.
+- Form không reset đúng.
+- Detail không cập nhật.
+- Sidebar lỗi trạng thái.
+
+Phải xử lý triệt để nguyên nhân.
+
+Kiểm tra:
+
+- Event listeners.
+- Dynamic DOM.
+- Event delegation.
+- State management.
+- Async operations.
+- Race conditions.
+- API responses.
+- UI rerender.
+- Routing.
+- Error handling.
+
+Không sử dụng `window.location.reload()` như giải pháp mặc định.
+
+Sau thao tác thành công:
+
+- Cập nhật bảng.
+- Cập nhật chi tiết.
+- Cập nhật trạng thái.
+- Cập nhật số liệu liên quan.
+- Cập nhật thông báo.
+- Cập nhật Dashboard nếu có thay đổi.
+- Hiển thị toast ngắn.
+
+Chống double click.
+
+Nút đang xử lý phải có loading state.
+
+Không cho gửi form hai lần ngoài ý muốn.
+
+## 7.2. NAVIGATION
+
+Sử dụng điều hướng ổn định.
+
+Browser Back/Forward phải hoạt động.
+
+Khi mở chi tiết từ danh sách, quay lại không làm mất bộ lọc hoặc trạng thái trang một cách không cần thiết.
+
+Không cho kết quả API cũ ghi đè trang hiện tại sau khi người dùng chuyển màn hình.
+
+Không tạo route dẫn tới giao diện trống.
+
+## 7.3. ERROR HANDLING
+
+Thông báo lỗi phải ngắn và rõ.
+
+Ví dụ:
+
+- Không đủ quyền thực hiện.
+- Hồ sơ đã được xử lý.
+- Khối lượng vượt tồn khả dụng.
+- Vui lòng nhập lý do.
+- Không thể tải dữ liệu.
+- Phiên đăng nhập đã hết hạn.
+
+Không hiển thị stack trace hoặc lỗi kỹ thuật trực tiếp cho khách hàng.
+
+Log kỹ thuật phải nằm ở hệ thống theo dõi lỗi phù hợp.
+
+---
+
+# PART 8 — DATABASE & DATA INTEGRITY
+
+## 8.1. DATA MODEL
+
+Cần có dữ liệu cho:
+
+- Users.
+- Roles.
+- Permissions.
+- Suppliers.
+- Customers.
+- Machines.
+- Purchase Assignments.
+- Purchase Results.
+- Raw Material Receipts.
+- Raw Material Issues.
+- Production Plans.
+- Production Assignments.
+- Shift Reports.
+- LOTs.
+- QC Tests.
+- Finished Goods Receipts.
+- Outbound Proposals.
+- Outbound QC.
+- Recipient Information.
+- Dispatch Transactions.
+- Repair Requests.
+- Maintenance Reports.
+- Maintenance Material Requests.
+- Maintenance Material Items.
+- Evidence.
+- Notifications.
+- Audit Logs.
+
+Có thể giữ cấu trúc schema hiện tại nếu tương đương và đúng nghiệp vụ.
+
+Các quan hệ phải có khóa ngoại và ràng buộc hợp lệ.
+
+## 8.2. HIỂN THỊ DỮ LIỆU
+
+Không hiển thị ID nội bộ cho các trường cần tên.
+
+Backend nên trả về thông tin người liên quan như:
+
+- created_by_name.
+- approved_by_name.
+- submitted_by_name.
+- assigned_staff_name.
+- confirmed_by_name.
+
+Tương tự:
+
+- supplier_name.
+- customer_name.
+- machine_name.
+- lot_code.
+
+Không hiển thị `Created by 2`.
+
+Phải hiển thị tên người tạo thực tế.
+
+## 8.3. STOCK MOVEMENT
+
+Mọi biến động tồn kho phải:
+
+- Có transaction riêng.
+- Có nguồn nghiệp vụ.
+- Có người xác nhận.
+- Có thời gian.
+- Có khối lượng.
+- Có loại giao dịch.
+- Có liên kết hồ sơ gốc.
+
+Không tạo stock movement khi chưa có xác nhận vật lý cần thiết.
+
+Không cho giao dịch trùng.
+
+Không cho tồn âm.
+
+Không giảm kho hai lần cho một lượng NVL vừa cấp vừa báo đã sử dụng.
+
+Không tăng thành phẩm chỉ vì đã hoàn tất QC.
+
+## 8.4. TRANSACTION SAFETY
+
+Các thao tác thay đổi tồn hoặc trạng thái quan trọng phải được thực hiện atomic.
+
+Nếu thất bại thì rollback.
+
+Sử dụng cơ chế chống race condition và double submission.
+
+Bảo đảm idempotency khi thích hợp.
+
+Không cho hai request đồng thời xác nhận cùng một giao dịch làm tồn kho tăng/giảm hai lần.
+
+## 8.5. MIGRATION
+
+Nếu có database cũ:
+
+- Backup trước khi sửa.
+- Thực hiện migration.
+- Giữ bản ghi và lịch sử.
+- Không phá FK.
+- Không ghi đè database bằng dữ liệu mẫu.
+
+---
+
+# PART 9 — DEMO/TEST DATA WITHOUT DEMO UI
+
+## 9.1. TẠO DỮ LIỆU THỬ NGHIỆM
+
+Tôi cần dữ liệu đầy đủ để kiểm thử website.
+
+Tạo dữ liệu liên kết thực tế:
+
+- 8 vai trò.
+- Nhiều tài khoản nhân viên.
+- Tối thiểu 8 Supplier.
+- Tối thiểu 6 Customer.
+- Máy cho các công đoạn.
+- Phân công mua.
+- Phiếu mua Submitted.
+- Phiếu mua Returned.
+- Phiếu mua Approved.
+- Phiếu chờ kho nhập.
+- Giao dịch kho.
+- Kế hoạch sản xuất.
+- Báo cáo ca.
+- LOT.
+- QC lần 1/2/3.
+- Grade A/B.
+- Kho thành phẩm.
+- Đề xuất xuất hàng.
+- QC xuất hàng.
+- Giao hàng.
+- Báo cáo hỏng máy.
+- Yêu cầu bảo trì.
+- Vật tư bảo trì.
+- Thông báo.
+- Hình ảnh minh họa.
+- Audit History.
+
+Dữ liệu phải có FK đúng.
+
+Không tạo random data không có quan hệ.
+
+## 9.2. KHÔNG HIỂN THỊ DEMO CHO KHÁCH HÀNG
+
+Dữ liệu test chỉ phục vụ môi trường phát triển/nghiệm thu.
+
+Không hiển thị:
+
+- Demo Mode.
+- Test Mode.
+- Sample Application.
+- Fake Data.
+- Test Controls.
+
+trên giao diện bàn giao.
+
+Phải tách dữ liệu test khỏi dữ liệu production.
+
+Seed script chạy lại không tạo trùng.
+
+Không dùng `data.js` để tạo một hệ thống dữ liệu giả khác với database.
+
+---
+
+# PART 10 — SECURITY
+
+## 10.1. AUTHENTICATION
+
+- Password hashing.
+- Session handling.
+- Logout.
+- Account locking.
+- Secure password reset.
+- Rate limiting.
+- Input validation.
+
+## 10.2. AUTHORIZATION
+
+Mọi API đều phải kiểm tra quyền.
+
+Không chỉ dựa vào việc ẩn menu.
+
+Không cho IDOR.
+
+Không cho user truy cập hồ sơ trái quyền thông qua việc đổi ID trên URL.
+
+Không cho Admin đọc dữ liệu kinh doanh.
+
+Không cho Owner thực hiện specialist action chưa được cấp.
+
+## 10.3. EVIDENCE SECURITY
+
+- Kiểm tra định dạng file.
+- Giới hạn dung lượng.
+- Lưu trữ an toàn.
+- Kiểm tra quyền khi xem.
+- Không thực thi file upload.
+- Không công khai private evidence.
+
+## 10.4. AUDIT
+
+Ghi lại mọi thay đổi quan trọng.
+
+Không cho người dùng sửa hoặc xóa lịch sử xử lý trái phép.
+
+---
+
+# PART 11 — TESTING REQUIREMENTS
+
+Phải kiểm thử thật.
+
+Không chỉ kiểm tra website có mở được.
+
+## 11.1. FUNCTIONAL TESTS
+
+Kiểm tra đầy đủ:
+
+1. Owner inheritance.
+2. Manager approval chain.
+3. Admin isolation.
+4. Purchasing assignment.
+5. Purchasing result.
+6. Returned purchasing record.
+7. Raw material receiving.
+8. Raw material issuing.
+9. Production planning.
+10. Staff assignment.
+11. Shift reporting.
+12. Shift report approval.
+13. QC tests.
+14. LOT management.
+15. Finished Goods receiving.
+16. Outbound proposal.
+17. Owner approval.
+18. Outbound QC.
+19. Recipient verification.
+20. FIFO.
+21. Dispatch confirmation.
+22. Equipment failure.
+23. Maintenance assignment.
+24. Maintenance reporting.
+25. Material item approval.
+26. Supplier management.
+27. Customer management.
+28. Machine management.
+29. Account functions.
+30. Notifications.
+31. Evidence.
+32. Audit.
+33. Dashboard.
+34. Browser Back/Forward.
+35. Pagination.
+36. Responsive layout.
+
+## 11.2. BUSINESS INTEGRATION TESTS
+
+Ví dụ kiểm thử thu mua:
+
+Manager tạo phân công 10.000 kg.
+
+Purchasing Staff mua thực tế 9.500 kg.
+
+Nhân viên ghi kết quả trên phân công đã có.
+
+Manager trả lại để bổ sung.
+
+Nhân viên sửa cùng mã hồ sơ.
+
+Owner duyệt.
+
+Warehouse Staff nhận thực tế 9.300 kg.
+
+Hệ thống phải lưu ba giá trị khác nhau.
+
+Tồn kho chỉ tăng theo giao dịch nhận đã xác nhận hợp lệ.
+
+Không tạo bản ghi mua thứ hai.
+
+Không cộng tồn trùng.
+
+Ví dụ kiểm thử xuất hàng:
+
+Manager tạo đề xuất.
+
+QC Staff ghi outbound QC.
+
+Owner xem và quyết định.
+
+Manager ghi thông tin người nhận.
+
+Warehouse Staff xác minh.
+
+Warehouse Staff chọn LOT theo FIFO.
+
+Giao hàng thực tế.
+
+Tồn kho chỉ giảm sau xác nhận dispatch.
+
+Không cho Manager tự phê duyệt thay Owner.
+
+## 11.3. UI E2E TESTS
+
+Kiểm thử bằng thao tác trình duyệt thật nếu môi trường hỗ trợ:
+
+- Click các nút.
+- Mở modal.
+- Đóng modal.
+- Tạo hồ sơ.
+- Gửi hồ sơ.
+- Duyệt.
+- Trả lại.
+- Từ chối.
+- Xem ảnh.
+- Chuyển trang.
+- Dùng Browser Back.
+- Cập nhật Account.
+- Đổi mật khẩu.
+- Phân trang.
+- Tìm kiếm.
+- Lọc.
+- Sidebar accordion.
+
+Không được tuyên bố đã kiểm thử browser nếu thực tế chỉ kiểm thử API.
+
+## 11.4. UI ACCEPTANCE
+
+Giao diện đạt yêu cầu khi:
+
+- Không có hướng dẫn thừa.
+- Không có nội dung demo.
+- Không có fake buttons.
+- Không có menu sai quyền.
+- Không hiển thị ID thay tên.
+- Không có combobox lựa chọn quyết định phê duyệt.
+- Không có nút không hoạt động.
+- Không cần F5.
+- Không có trang trống.
+- Không có bảng vô nghĩa.
+- Không có biểu đồ giả.
+- Không bị tràn giao diện.
+- Màu sắc và trạng thái nhất quán.
+- Các thao tác thực hiện nhanh, rõ và đúng nghiệp vụ.
+
+---
+
+# PART 12 — FINAL HANDOVER REQUIREMENTS
+
+## 12.1. PRODUCTION HANDOVER UI
+
+Giao diện phải sẵn sàng cho khách hàng sử dụng theo các quy tắc nghiệp vụ đã được xác nhận.
+
+Không được để lộ:
+
+- Dev Mode.
+- Debug Menu.
+- Test User Selection.
+- API Debug.
+- Mock Data Controls.
+- Developer Documentation.
+- Business Rule Explanations.
+- Workflow Guide.
+- Placeholder Actions.
+
+Hệ thống phải có cảm giác là một sản phẩm nội bộ hoàn chỉnh.
+
+Người dùng đăng nhập và sử dụng ngay chức năng thuộc quyền.
+
+Không cần các phần giới thiệu hay hướng dẫn.
+
+## 12.2. DELIVERABLES
+
+Bàn giao:
+
+- Full backend source.
+- Full frontend source.
+- Database schema.
+- Migrations.
+- API.
+- Business services.
+- RBAC.
+- Authentication.
+- UI components.
+- Role dashboards.
+- Business modules.
+- Evidence management.
+- Audit history.
+- Tests.
+- Test seed script.
+- Windows startup script.
+- README dành cho triển khai kỹ thuật.
+- Danh sách vấn đề nghiệp vụ chưa xác nhận.
+
+README kỹ thuật được giữ trong source code, không hiển thị lên website cho người dùng cuối.
+
+## 12.3. WINDOWS LOCAL EXECUTION
+
+Đối với bản chạy local Windows:
+
+Cung cấp script khởi động phù hợp.
+
+Kiểm tra dependency.
+
+Khởi động backend.
+
+Mở đúng URL.
+
+Nếu cổng đang bị phiên bản cũ chiếm, không mở nhầm website cũ.
+
+Không yêu cầu người dùng thực hiện quá nhiều bước kỹ thuật không cần thiết.
+
+---
+
+# PART 13 — DEFINITION OF DONE
+
+Chỉ coi hệ thống hoàn thành khi:
+
+1. Đúng toàn bộ nghiệp vụ đã xác nhận.
+2. Owner kế thừa toàn bộ Manager.
+3. Manager vẫn phải trình Owner theo workflow.
+4. Admin không xem dữ liệu kinh doanh.
+5. Mọi Actor có đúng chức năng.
+6. Không có Draft.
+7. Thu mua gắn với phân công ban đầu.
+8. Có khối lượng dự kiến và thực tế riêng.
+9. Returned sửa trên cùng hồ sơ.
+10. Phê duyệt/Trả lại/Từ chối là button action.
+11. Không hiển thị ID thay họ tên.
+12. Giao diện chi tiết thống nhất, không có tab thừa.
+13. Back/Forward trình duyệt hoạt động.
+14. Update Profile hoạt động.
+15. Change Password hoạt động.
+16. Reset Password hoạt động đúng theo môi trường được cấu hình.
+17. Không cần F5.
+18. Tồn kho không cộng/trừ trùng.
+19. QC, LOT và sản xuất liên kết chính xác.
+20. Xuất hàng phải đúng quyết định Owner.
+21. Bảo trì và vật tư tuân thủ workflow.
+22. Hình ảnh chứng cứ xem được.
+23. Audit History đầy đủ.
+24. Dashboard theo vai trò và dữ liệu thực.
+25. Responsive.
+26. Giao diện không có nội dung hướng dẫn dư thừa.
+27. Tất cả chức năng được phép sử dụng đều hoạt động.
+28. Có dữ liệu test liên kết.
+29. Các bài kiểm thử cần thiết đã chạy thật.
+30. Có mã nguồn hoàn chỉnh và hướng dẫn triển khai kỹ thuật.
+
+Không gọi sản phẩm là hoàn thiện 100% nếu còn chức năng chưa thực hiện hoặc business rule chưa được xác nhận.
+
+---
+
+# PART 14 — FINAL EXECUTION INSTRUCTION
+
+## CHỈ THỊ CUỐI CÙNG
+
+**HÃY TRỰC TIẾP TRIỂN KHAI, REFACTOR VÀ HOÀN THIỆN TOÀN BỘ BATT PPMS.**
+
+Không chỉ phân tích.
+
+Không chỉ viết kế hoạch.
+
+Không chỉ mô tả giao diện.
+
+Không chỉ tạo mockup.
+
+Không chỉ tạo các trang CRUD.
+
+Không chỉ tạo các nút không có chức năng.
+
+Hãy thực sự viết, sửa và tích hợp mã nguồn.
+
+Trình tự thực hiện:
+
+**STEP 1:** Đọc source code hiện tại và đối chiếu các yêu cầu trong prompt.
+
+**STEP 2:** Xác định chức năng sai, thiếu hoặc chưa liên kết.
+
+**STEP 3:** Sửa permission và business logic.
+
+**STEP 4:** Sửa database, state transitions và API.
+
+**STEP 5:** Hoàn thiện các nghiệp vụ BS-01 đến BS-18.
+
+**STEP 6:** Thiết kế lại toàn bộ UI/UX theo Modern Minimal Enterprise ERP.
+
+**STEP 7:** Loại bỏ toàn bộ nội dung hướng dẫn, demo và các thành phần dư thừa.
+
+**STEP 8:** Sửa tất cả các nút bấm, form, modal và điều hướng.
+
+**STEP 9:** Bổ sung dữ liệu test liên kết.
+
+**STEP 10:** Kiểm thử, sửa lỗi và bàn giao mã nguồn.
+
+Không tự ý thêm các tính năng nằm ngoài phạm vi doanh nghiệp nếu chúng làm phức tạp website hoặc thay đổi nghiệp vụ.
+
+Không cần hỏi lại những điều đã được xác nhận rõ trong prompt.
+
+Với quy tắc chưa được xác nhận, giữ an toàn nghiệp vụ, không tự quyết định thay doanh nghiệp và ghi vấn đề trong báo cáo kỹ thuật.
+
+Nếu môi trường không cho phép chạy một loại kiểm thử, phải báo cáo trung thực. Không được đánh dấu Passed khi chưa thực hiện.
+
+Nếu không thể truy cập source code hiện tại, phải nêu rõ phần không thể kiểm tra; không được giả vờ đã sửa source. Khi cần tạo mới, cung cấp mã nguồn thực tế, không chỉ mô tả.
+
+**PHƯƠNG CHÂM THIẾT KẾ:**
+
+- Simple Interface.
+- Complete Functionality.
+- Accurate Business Logic.
+- Strict Role Permissions.
+- Reliable Data.
+- Fast Interaction.
+- Professional User Experience.
+
+**GIAO DIỆN CÀNG GỌN CÀNG TỐT, NHƯNG KHÔNG ĐƯỢC CẮT BỎ NHỮNG CHỨC NĂNG VÀ THÔNG TIN NGHIỆP VỤ CẦN THIẾT.**
+
+**MỤC TIÊU CUỐI CÙNG: BATT PPMS PHẢI LÀ MỘT WEBSITE QUẢN LÝ SẢN XUẤT THỰC TẾ, ĐẦY ĐỦ CHỨC NĂNG, TRỰC QUAN, DỄ SỬ DỤNG, ĐÚNG PHÂN QUYỀN, ĐÚNG LUỒNG NGHIỆP VỤ VÀ PHÙ HỢP ĐỂ BÀN GIAO CHO DOANH NGHIỆP.**
+
+BẮT ĐẦU THỰC HIỆN CODE NGAY TRÊN PROJECT HIỆN TẠI. KHÔNG DỪNG Ở VIỆC ĐỀ XUẤT HOẶC LẬP KẾ HOẠCH.

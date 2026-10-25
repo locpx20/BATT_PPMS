@@ -1,0 +1,6 @@
+{
+  "name": "BATT PPMS - Hệ thống Quản lý Quy trình Sản xuất",
+  "description": "Hệ thống quản lý quy trình sản xuất viên nén gỗ toàn diện cho CÔNG TY CỔ PHẦN NĂNG LƯỢNG TÁI TẠO BATT",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
