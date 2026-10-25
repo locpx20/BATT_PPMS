@@ -1,5 +1,5 @@
 /**
- * BATT PPMS - Domain Types & Data Contracts
+ * BATT PPMS - Domain Types & Data Contracts (Refactored V6.1)
  * CÔNG TY CỔ PHẦN NĂNG LƯỢNG TÁI TẠO BATT
  * Wood Pellet Manufacturing Process Management System
  */
@@ -18,7 +18,7 @@ export const ROLES: Record<RoleCode, RoleInfo> = {
     code: 'O',
     name: 'Owner',
     vietnameseTitle: 'Giám đốc / Chủ sở hữu',
-    description: 'Toàn quyền quản lý điều hành, phê duyệt xuất hàng, quyết định giá bán và giải quyết sai lệch QC',
+    description: 'Toàn quyền quản lý điều hành, phê duyệt xuất hàng, quyết định giá bán, quản trị tài chính và đối tác',
   },
   M: {
     code: 'M',
@@ -36,7 +36,7 @@ export const ROLES: Record<RoleCode, RoleInfo> = {
     code: 'WS',
     name: 'Warehouse Staff',
     vietnameseTitle: 'Nhân viên Thủ kho',
-    description: 'Xác nhận nhập kho NVL, cấp phát NVL, nhập kho thành phẩm và xác minh xuất hàng FIFO',
+    description: 'Xác nhận/từ chối nhập kho NVL, cấp NVL, nhập kho thành phẩm A/B, tạo đề xuất xuất và xuất kho/từ chối xuất kho',
   },
   S: {
     code: 'S',
@@ -48,13 +48,13 @@ export const ROLES: Record<RoleCode, RoleInfo> = {
     code: 'QC',
     name: 'QC Staff',
     vietnameseTitle: 'Nhân viên KCS / Quản lý Chất lượng',
-    description: 'Thực hiện 3 lần kiểm tra chất lượng LOT, phân loại Grade A/B và QC xuất hàng',
+    description: 'Thực hiện 3 lần kiểm tra chất lượng LOT, phân loại vào Kho A hoặc Kho B và kiểm tra QC xuất hàng',
   },
   MS: {
     code: 'MS',
     name: 'Maintenance Staff',
     vietnameseTitle: 'Nhân viên Bảo trì Cơ điện',
-    description: 'Sửa chữa máy móc sự cố, đề xuất vật tư thay thế và lập báo cáo hoàn thành',
+    description: 'Sửa chữa máy móc sự cố, đề xuất vật tư thay thế, ghi nhận mua vật tư và lập báo cáo hoàn thành',
   },
   A: {
     code: 'A',
@@ -84,8 +84,9 @@ export interface Supplier {
   address: string;
   contactPerson: string;
   status: 'ACTIVE' | 'INACTIVE';
-  materialTypes: string[];
   notes?: string;
+  totalPurchasedKg?: number;
+  totalPaidVnd?: number;
 }
 
 export interface Customer {
@@ -97,26 +98,28 @@ export interface Customer {
   contactPerson: string;
   status: 'ACTIVE' | 'INACTIVE';
   paymentTerms?: string;
+  totalOrderedKg?: number;
+  totalReceivableVnd?: number;
 }
 
 export type MachineStatus = 'OPERATIONAL' | 'MAINTENANCE_REQUIRED' | 'UNDER_REPAIR' | 'DECOMMISSIONED';
 
 export type ProductionStage = 
   | 'CLEANING'        // Làm sạch
-  | 'CHIPPING'        // Băm dăm
-  | 'MILLING'         // Nghiền mùn cưa
-  | 'DRYING'          // Sấy khô
+  | 'CHIPPING'        // Băm
+  | 'MILLING'         // Nghiền
+  | 'DRYING'          // Sấy
   | 'POST_DRY_CHECK'  // Kiểm tra sau sấy
   | 'PELLETIZING'     // Ép viên
   | 'PACKAGING';      // Đóng bao Jumbo
 
 export const STAGE_NAMES: Record<ProductionStage, string> = {
-  CLEANING: '1. Làm sạch nguyên liệu',
-  CHIPPING: '2. Băm dăm gỗ',
+  CLEANING: '1. Làm sạch',
+  CHIPPING: '2. Băm dăm',
   MILLING: '3. Nghiền mùn cưa',
-  DRYING: '4. Sấy khô',
+  DRYING: '4. Sấy',
   POST_DRY_CHECK: '5. Kiểm tra sau sấy',
-  PELLETIZING: '6. Ép viên nén',
+  PELLETIZING: '6. Ép viên',
   PACKAGING: '7. Đóng bao Jumbo',
 };
 
@@ -140,14 +143,14 @@ export type PurchaseStatus =
   | 'RETURNED'             // Bị trả lại để sửa thông tin
   | 'REJECTED'             // Bị từ chối
   | 'RECEIVED'             // Thủ kho đã xác nhận nhận hàng vào kho
-  | 'DISCREPANCY_PENDING'; // Chênh lệch vượt ngưỡng, chờ xử lý
+  | 'REJECTED_BY_WAREHOUSE'; // Thủ kho từ chối nhận hàng
 
 export interface PurchaseAssignment {
   id: string;
   code: string; // e.g. PO-2026-001
   supplierId: string;
   supplierName: string;
-  rawMaterialType: string;
+  rawMaterialType: string; // Fixed to "Nguyên vật liệu"
   plannedQuantityKg: number; // Khối lượng dự kiến (> 0)
   plannedDate: string;
   assignedStaffId: string;
@@ -156,7 +159,7 @@ export interface PurchaseAssignment {
   createdByName: string;
   createdAt: string;
   status: PurchaseStatus;
-  notes?: string;
+  assignmentNotes?: string; // Ghi chú của Owner/Manager khi giao việc (bắt buộc hiển thị cho PS)
 
   // Actual Purchase Result (filled by Purchasing Staff)
   weighedQuantityKg?: number; // Khối lượng cân thực tế
@@ -165,7 +168,7 @@ export interface PurchaseAssignment {
   weighedAt?: string;
   scaleTicketImageUrl?: string;
   invoiceImageUrl?: string;
-  purchasingNotes?: string;
+  purchasingResultNotes?: string; // Ghi chú riêng của nhân viên thu mua
   submittedAt?: string;
 
   // Approval Information
@@ -181,7 +184,7 @@ export interface PurchaseAssignment {
   receivedById?: string;
   receivedByName?: string;
   warehouseNotes?: string;
-  discrepancyReason?: string;
+  warehouseRejectionReason?: string; // Lý do thủ kho từ chối nhận hàng
 }
 
 // WF-02 Production Planning
@@ -200,8 +203,8 @@ export interface ProductionTaskAssignment {
   stage: ProductionStage;
   machineId: string;
   machineName: string;
-  operatorId: string;
-  operatorName: string;
+  operatorIds: string[]; // Một máy có thể phân công nhiều nhân viên trong cùng ca!
+  operatorNames: string[];
   targetQuantityKg: number;
   notes?: string;
 }
@@ -211,7 +214,7 @@ export interface ProductionPlan {
   code: string; // e.g. PLAN-2026-042
   productionDate: string;
   shift: PlanShift;
-  productName: string; // e.g. Viên nén gỗ Tràm / Keo xuất khẩu
+  productName: string; // Fixed to "Viên nén gỗ"
   targetQuantityKg: number;
   status: PlanStatus;
   createdById: string;
@@ -267,8 +270,8 @@ export interface ShiftReport {
   lotCodeGenerated?: string; // Generated LOT code when approved
 }
 
-// WF-05 Quality Control (QC theo ca)
-export type PelletGrade = 'GRADE_A' | 'GRADE_B';
+// WF-05 Quality Control (QC theo ca phân loại Kho A hoặc Kho B)
+export type FinishedWarehouseType = 'KHO_A' | 'KHO_B';
 
 export interface SingleQcTest {
   testNumber: 1 | 2 | 3;
@@ -276,14 +279,14 @@ export interface SingleQcTest {
   testedById: string;
   testedByName: string;
   moisturePercent: number;    // Độ ẩm (%) (chuẩn: 6-10%)
-  ashPercent: number;         // Độ tro (%) (Grade A < 0.8%, Grade B < 1.5%)
-  impuritiesPercent: number;  // Tạp chất (%) (chuẩn < 0.5%)
+  ashPercent: number;         // Độ tro (%)
+  impuritiesPercent: number;  // Tạp chất (%)
   calorificValueKcalKg?: number; // Nhiệt trị (kcal/kg)
   imageUrl?: string;
   notes?: string;
 }
 
-export type LotQcStatus = 'PENDING' | 'IN_TESTING' | 'QC_PASSED' | 'RE_DRY_REQUIRED';
+export type LotQcStatus = 'PENDING' | 'IN_TESTING' | 'QC_COMPLETED';
 
 export interface LotItem {
   id: string;
@@ -292,13 +295,12 @@ export interface LotItem {
   planCode: string;
   shiftReportId: string;
   productionDate: string;
-  productName: string;
+  productName: string; // Fixed to "Viên nén gỗ"
   quantityKg: number;
   jumboBagsCount: number;
-  grade?: PelletGrade;
+  targetWarehouse?: FinishedWarehouseType; // Kho A hoặc Kho B sau khi QC
   qcStatus: LotQcStatus;
-  tests: SingleQcTest[]; // Exactly up to 3 independent tests
-  reDryCount: number;
+  tests: SingleQcTest[]; // Exactly 3 independent tests
   isReceivedInWarehouse: boolean;
   receivedAt?: string;
   receivedById?: string;
@@ -307,41 +309,39 @@ export interface LotItem {
   createdAt: string;
 }
 
-// WF-07 Outbound Proposal
-export type OutboundProposalFlow = 'FLOW_A' | 'FLOW_B'; // Flow A: Warehouse -> Manager -> Owner | Flow B: Manager -> Owner
+// WF-07 Outbound Proposal (Warehouse Staff and Manager both send directly to Owner)
 export type OutboundProposalStatus = 
-  | 'PENDING_MANAGER_REVIEW' // Only in Flow A
   | 'PENDING_OWNER_APPROVAL' 
   | 'APPROVED' 
   | 'RETURNED' 
   | 'REJECTED' 
-  | 'DISPATCHED';
+  | 'DISPATCHED'
+  | 'REJECTED_BY_WAREHOUSE'; // Thủ kho từ chối xuất kho
 
 export interface OutboundProposal {
   id: string;
   code: string; // e.g. OUT-PROP-2026-015
-  flow: OutboundProposalFlow;
+  creatorRole: 'WS' | 'M' | 'O';
+  sourceWarehouse: FinishedWarehouseType; // Kho A hoặc Kho B
   customerId: string;
   customerName: string;
   originalCustomerId?: string; // If Owner changed customer, record original
   originalCustomerName?: string;
-  productName: string;
+  productName: string; // "Viên nén gỗ"
   lotId: string;
   lotCode: string;
-  grade: PelletGrade;
   requestedQuantityKg: number;
+  
+  // Selling Price is decided exclusively by Owner!
   unitPriceVnd?: number;
   totalValueVnd?: number;
+  
   status: OutboundProposalStatus;
   notes?: string;
 
   createdById: string;
   createdByName: string;
   createdAt: string;
-
-  managerReviewedById?: string;
-  managerReviewedByName?: string;
-  managerReviewedAt?: string;
 
   ownerDecidedById?: string;
   ownerDecidedByName?: string;
@@ -378,6 +378,7 @@ export interface OutboundProposal {
   dispatchedByName?: string;
   dispatchEvidenceImageUrl?: string;
   dispatchMismatchFlag?: boolean;
+  dispatchRejectionReason?: string;
 }
 
 // WF-10 Machine Failure Reporting & WF-11 Maintenance
@@ -428,20 +429,32 @@ export interface MaintenanceReport {
   returnReason?: string;
 }
 
-// WF-12 Maintenance Material Request
-export type MaterialItemStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WAITING_SUPPLY' | 'SUPPLIED';
+// WF-12 Maintenance Material Request & Actual Purchase Record
+export type MaterialItemStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface MaintenanceMaterialItem {
   id: string;
   materialName: string;
   requestedQuantity: number;
-  unit: string; // e.g. Cái, Bộ, Vòng bi, Dây curoa, Dầu nhớt lít
+  unit: string;
   reason: string;
   status: MaterialItemStatus;
   rejectionReason?: string;
   decidedById?: string;
   decidedByName?: string;
   decidedAt?: string;
+
+  // Actual Purchase Record (Sec 29)
+  isPurchased?: boolean;
+  actualPurchasedQuantity?: number;
+  actualUnitPriceVnd?: number;
+  actualTotalAmountVnd?: number;
+  purchasedAt?: string;
+  supplierName?: string;
+  invoiceUrl?: string;
+  purchasedById?: string;
+  purchasedByName?: string;
+  purchaseNotes?: string;
 }
 
 export interface MaintenanceMaterialRequest {
@@ -455,12 +468,81 @@ export interface MaintenanceMaterialRequest {
   items: MaintenanceMaterialItem[];
 }
 
+// WF-14 & XIV: FINANCIAL MANAGEMENT (New Major Feature)
+export type PaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+
+export interface SaleInvoice {
+  id: string;
+  code: string; // e.g. INV-2026-001
+  proposalId: string;
+  proposalCode: string;
+  customerId: string;
+  customerName: string;
+  warehouseType: FinishedWarehouseType; // Kho A hoặc Kho B
+  productName: string; // "Viên nén gỗ"
+  dispatchedQuantityKg: number;
+  unitPriceVnd: number;
+  totalAmountVnd: number;
+  paidAmountVnd: number;
+  remainingAmountVnd: number;
+  paymentStatus: PaymentStatus;
+  invoiceDate: string;
+  paymentHistory: {
+    amount: number;
+    paidAt: string;
+    recordedByName: string;
+    notes?: string;
+  }[];
+}
+
+export type ExpenseCategory = 
+  | 'FUEL_OIL'            // Xăng dầu vận hành
+  | 'MAINTENANCE_PARTS'   // Mua vật tư bảo trì
+  | 'MACHINE_REPAIR'      // Sửa chữa máy móc
+  | 'TRANSPORTATION'      // Vận chuyển, logistics
+  | 'OPERATIONAL_OTHER';  // Chi phí vận hành khác
+
+export const EXPENSE_CATEGORY_NAMES: Record<ExpenseCategory, string> = {
+  FUEL_OIL: 'Xăng dầu lò đốt & xe xúc',
+  MAINTENANCE_PARTS: 'Vật tư bảo trì thay thế',
+  MACHINE_REPAIR: 'Gia công & Sửa chữa cơ điện',
+  TRANSPORTATION: 'Cước vận chuyển & Xe bốc xếp',
+  OPERATIONAL_OTHER: 'Chi phí vận hành khác',
+};
+
+export type ExpenseStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'PAID' | 'REJECTED';
+
+export interface ExpenseRecord {
+  id: string;
+  code: string; // e.g. EXP-2026-01
+  expenseDate: string;
+  category: ExpenseCategory;
+  title: string;
+  amountVnd: number;
+  status: ExpenseStatus;
+  linkedEntityId?: string; // e.g. material request id or machine id
+  linkedEntityCode?: string;
+  recipientOrVendor: string;
+  receiptImageUrl?: string;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  approvedById?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  paidAt?: string;
+  paidById?: string;
+  paidByName?: string;
+  rejectionReason?: string;
+}
+
 // WF-18 Audit Logs & Stock Movements
 export interface StockMovement {
   id: string;
   timestamp: string;
   materialCategory: 'RAW_MATERIAL' | 'FINISHED_GOODS';
   materialName: string;
+  warehouseType?: FinishedWarehouseType; // Kho A hoặc Kho B
   movementType: 'IN' | 'OUT';
   quantityKg: number;
   referenceDocumentType: 'PURCHASE_RECEIPT' | 'RAW_MATERIAL_ISSUE' | 'FINISHED_GOODS_RECEIPT' | 'CUSTOMER_DISPATCH';

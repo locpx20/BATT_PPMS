@@ -1,0 +1,1718 @@
+# BATT PPMS — MASTER BUSINESS CORRECTION & FULL SYSTEM REFACTORING PROMPT
+
+## I. VAI TRÒ VÀ MỤC TIÊU
+
+Bạn là Senior Business Analyst, ERP/MES Solution Architect, Senior Full-Stack Developer, Database Architect, UI/UX Designer và QA Engineer.
+
+Tôi yêu cầu bạn rà soát, sửa chữa và hoàn thiện trực tiếp toàn bộ ứng dụng **BATT Production Process Management System (BATT PPMS)** hiện tại.
+
+Đây là hệ thống quản lý sản xuất viên nén gỗ dành cho doanh nghiệp thực tế, đã được định hướng bàn giao cho khách hàng sử dụng.
+
+**Mục tiêu quan trọng nhất là sửa đúng nghiệp vụ, phân quyền, quy trình phê duyệt, quan hệ dữ liệu và giao diện người dùng.**
+
+Không chỉ sửa những lỗi được liệt kê một cách riêng lẻ. Hãy kiểm tra toàn bộ những chức năng có liên quan để bảo đảm hệ thống thống nhất.
+
+Thứ tự ưu tiên:
+
+1. Business Logic.
+2. Permission Matrix.
+3. Workflow Accuracy.
+4. Data Integrity.
+5. Functional Completeness.
+6. User Experience.
+7. Visual Design.
+8. Performance.
+
+**Đây là yêu cầu thực hiện code, không phải yêu cầu viết kế hoạch hoặc giải thích lý thuyết.**
+
+---
+
+# II. QUY TẮC NGHIỆP VỤ MỚI NHẤT
+
+Các quy tắc trong prompt này là những quyết định nghiệp vụ mới nhất của tôi.
+
+Khi có xung đột với Business Stories, Source of Truth, Permission Matrix, mã nguồn hoặc các prompt trước đó, hãy ưu tiên quyết định mới trong prompt này.
+
+Không giữ lại hành vi cũ đã bị thay thế.
+
+Những phần không được thay đổi phải tiếp tục tuân thủ Business Stories BS-01 đến BS-18.
+
+## 1. Cấu trúc sản phẩm và nguyên vật liệu
+
+Doanh nghiệp BATT hiện tại chỉ có:
+
+**Một nhóm nguyên vật liệu chung: NVL — Nguyên vật liệu.**
+
+Không phân chia thành nhiều loại nguyên vật liệu trong chức năng thu mua và nhập kho.
+
+Không tạo các trường như:
+
+- Loại gỗ.
+- Phân loại nguyên liệu.
+- Nhóm nguyên liệu A/B.
+- Danh mục loại nguyên vật liệu không cần thiết.
+
+Trong danh sách phân công mua, phiếu mua và kho NVL, chỉ sử dụng nhãn **Nguyên vật liệu**.
+
+Nhà cung cấp không cần được phân loại theo các loại mặt hàng nguyên vật liệu.
+
+Doanh nghiệp cũng chỉ sản xuất một sản phẩm chính:
+
+**Viên nén gỗ.**
+
+Không cần lựa chọn nhiều loại sản phẩm khi lập kế hoạch sản xuất.
+
+Không được yêu cầu người dùng chọn Grade A hoặc Grade B trước khi QC.
+
+**Thành phẩm chỉ được phân vào Kho A hoặc Kho B sau khi có kết quả kiểm tra chất lượng.**
+
+Kho A và Kho B là hai phân loại lưu trữ thành phẩm theo chất lượng, không phải hai loại sản phẩm đầu vào.
+
+---
+
+# III. OWNER & MANAGER PERMISSION CORRECTION
+
+## 2. Owner kế thừa toàn bộ Manager
+
+Quy tắc bắt buộc:
+
+**Owner = All Manager Business Permissions + Owner Exclusive Permissions.**
+
+Mọi chức năng Manager được phép thực hiện thì Owner cũng được thực hiện.
+
+Owner có thể:
+
+- Tạo phân công thu mua.
+- Duyệt phiếu thu mua.
+- Lập kế hoạch sản xuất.
+- Phân công nhân viên.
+- Duyệt báo cáo ca.
+- Xem và điều phối kho.
+- Tạo yêu cầu xuất hàng.
+- Quản lý máy móc.
+- Tạo yêu cầu bảo trì.
+- Phân công sửa chữa.
+- Tạo yêu cầu mua vật tư.
+- Duyệt vật tư trong phạm vi được phép.
+- Quản lý các nghiệp vụ vận hành.
+- Xem các báo cáo được phép.
+- Thực hiện các quyết định riêng của Owner.
+
+Tuy nhiên, Owner không tự động có quyền thực hiện các thao tác chuyên môn dành riêng cho QC Staff, Warehouse Staff hoặc Production Staff.
+
+## 3. Không bắt Owner tự duyệt công việc do mình tạo
+
+Đây là quy tắc mới quan trọng.
+
+**Nếu Owner trực tiếp tạo một hồ sơ thuộc thẩm quyền quyết định của Owner thì không được bắt Owner gửi hồ sơ rồi tự mở lại để phê duyệt chính hồ sơ đó.**
+
+Ví dụ:
+
+Owner tạo phân công thu mua:
+
+Owner → Purchasing Staff.
+
+Không cần Owner duyệt lại.
+
+Owner tạo kế hoạch sản xuất:
+
+Owner → Production Staff.
+
+Không cần Owner tự phê duyệt lại.
+
+Owner tạo một khoản chi phí thuộc quyền quyết định:
+
+Owner → Ghi nhận quyết định → Bộ phận liên quan xử lý.
+
+Không cần Owner mở lại phiếu để nhấn Duyệt.
+
+Owner trực tiếp tạo yêu cầu mua vật tư thuộc quyền quyết định:
+
+Hệ thống ghi nhận quyết định của Owner và chuyển sang bước cung ứng tiếp theo.
+
+Owner trực tiếp lập yêu cầu xuất hàng:
+
+Nếu các điều kiện xuất hàng đã được đáp ứng, quyết định xuất hàng của Owner được ghi nhận ngay trong thao tác hợp lệ.
+
+Không bắt Owner tự trình mình để phê duyệt lần thứ hai.
+
+**Lưu ý:** Bỏ thao tác tự duyệt không được bỏ qua những bước nghiệp vụ bắt buộc như QC, xác nhận kho, xác minh người nhận hoặc giao dịch vật lý.
+
+Nếu Owner tạo yêu cầu xuất hàng trước khi hoàn tất QC xuất, hệ thống phải tiếp tục chờ QC. Nếu QC xuất khác QC theo ca, Owner vẫn phải đưa ra quyết định xử lý sai khác theo đúng thẩm quyền.
+
+Hệ thống phải lưu được người tạo, người quyết định và thời gian quyết định.
+
+## 4. Manager được tự quyết định trong phạm vi được giao
+
+Nếu nghiệp vụ quy định Manager có quyền phê duyệt thì Manager được quyết định mà không phải trình Owner.
+
+Ví dụ:
+
+- Duyệt phiếu thu mua.
+- Duyệt báo cáo sản xuất.
+- Phân công sửa chữa.
+- Xác nhận hoàn thành bảo trì.
+- Xử lý yêu cầu thuộc quyền Manager.
+
+Owner cũng được thực hiện các quyết định trên.
+
+Nhưng nếu nghiệp vụ quy định Owner là người quyết định cuối cùng, Manager phải gửi Owner.
+
+Ví dụ:
+
+- Xuất hàng.
+- Quyết định giá bán.
+- Phê duyệt khoản chi tài chính do Manager đề xuất theo quy tắc mới.
+- Những giao dịch khác được xác định cần Owner phê duyệt.
+
+Không áp dụng quy tắc "Manager tạo thì Owner duyệt" cho tất cả mọi chức năng một cách máy móc.
+
+Phải xác định theo từng nghiệp vụ.
+
+---
+
+# IV. RAW MATERIAL PURCHASING CORRECTION
+
+## 5. Sửa form tạo phân công thu mua
+
+Owner/Manager tạo phân công thu mua với các trường:
+
+- Mã phân công.
+- Nhà cung cấp.
+- Khối lượng dự kiến.
+- Đơn vị tính.
+- Ngày/giờ dự kiến.
+- Nhân viên thu mua.
+- Ghi chú.
+
+**Bỏ trường lựa chọn loại nguyên vật liệu.**
+
+Chỉ sử dụng nhãn Nguyên vật liệu.
+
+Nhà cung cấp phải chọn từ danh mục có sẵn.
+
+Không nhập ID nhà cung cấp.
+
+Sau khi tạo, hồ sơ chuyển trực tiếp đến Purchasing Staff được phân công.
+
+## 6. Hiển thị ghi chú xuyên suốt quy trình
+
+Hiện tại Owner/Manager nhập ghi chú khi tạo phân công nhưng Purchasing Staff không nhìn thấy.
+
+Hãy sửa:
+
+Ghi chú do Owner/Manager nhập phải được lưu trong bản ghi phân công và hiển thị đầy đủ ở:
+
+- Danh sách phân công của nhân viên khi phù hợp.
+- Chi tiết phân công.
+- Màn hình ghi kết quả thu mua.
+- Chi tiết hồ sơ mua.
+- Lịch sử phân công cho người có quyền.
+
+Nếu ghi chú dài, có thể rút gọn trong danh sách nhưng phải xem được toàn bộ trong chi tiết.
+
+Không làm mất ghi chú khi nhân viên gửi kết quả.
+
+Nếu Purchasing Staff bổ sung ghi chú riêng, phải lưu tách biệt:
+
+- Ghi chú phân công.
+- Ghi chú kết quả thu mua.
+
+Không ghi đè ghi chú của Manager/Owner.
+
+## 7. Ghi kết quả mua ngay trên phân công
+
+Purchasing Staff mở chính phân công được giao.
+
+Nút: **Ghi kết quả**.
+
+Form hiển thị sẵn:
+
+- Mã phân công.
+- Nhà cung cấp.
+- Khối lượng dự kiến.
+- Ghi chú phân công.
+
+Nhân viên nhập:
+
+- Khối lượng cân thực tế.
+- Đơn giá.
+- Tổng tiền.
+- Thời gian cân.
+- Ảnh phiếu cân.
+- Hóa đơn nếu có.
+- Ghi chú thực tế.
+
+Không tạo phiếu mua mới không liên kết với phân công.
+
+Một phân công có một hồ sơ kết quả thu mua tương ứng trong phạm vi hiện tại.
+
+Khi hồ sơ bị trả lại, nhân viên sửa trên chính hồ sơ đó.
+
+Không tạo hồ sơ thứ hai.
+
+## 8. Luồng duyệt thu mua
+
+Owner/Manager xem toàn bộ hồ sơ và bằng chứng.
+
+Các nút:
+
+- Phê duyệt.
+- Trả lại.
+- Từ chối.
+
+Khi Approved, hồ sơ chuyển sang danh sách chờ nhập kho của Warehouse Staff.
+
+Không tự cộng tồn kho.
+
+---
+
+# V. RAW MATERIAL WAREHOUSE CORRECTION
+
+## 9. Bổ sung quyền từ chối khi nhập kho
+
+Hiện tại thủ kho chỉ có thể xác nhận nhập kho.
+
+Đây là thiết kế chưa đúng.
+
+Warehouse Staff phải được lựa chọn:
+
+**Nhập kho | Từ chối**
+
+Không dùng combobox.
+
+### Nếu chọn Nhập kho
+
+Nhân viên nhập khối lượng nhận thực tế.
+
+Kiểm tra số liệu và điều kiện hợp lệ.
+
+Sau khi xác nhận:
+
+- Lưu giao dịch nhập kho.
+- Cập nhật tồn NVL.
+- Ghi người thực hiện.
+- Ghi thời gian.
+- Khóa giao dịch đã hoàn tất để tránh nhập trùng.
+
+### Nếu chọn Từ chối
+
+Bắt buộc nhập lý do.
+
+Ví dụ:
+
+- Khối lượng không khớp.
+- Chứng từ chưa hợp lệ.
+- Hàng thực nhận có vấn đề.
+- Thông tin chưa đầy đủ.
+
+Hệ thống phải:
+
+- Không tăng tồn kho.
+- Lưu lý do từ chối.
+- Ghi người từ chối.
+- Ghi thời gian.
+- Thông báo cho Owner/Manager.
+- Hiển thị hồ sơ trong danh sách cần xử lý lại.
+
+Owner/Manager phải xem được nguyên nhân từ chối và xử lý theo quyền.
+
+Nếu cần chuyển lại cho Purchasing Staff bổ sung thông tin, phải giữ cùng hồ sơ và lịch sử.
+
+Sau khi xử lý hợp lệ, hồ sơ mới được phép gửi lại thủ kho.
+
+Không cho nhập lại phiếu đã hoàn tất.
+
+Không tạo vòng lặp phê duyệt tự động hoặc tự ý coi việc nhập lý do là đã giải quyết mọi chênh lệch.
+
+---
+
+# VI. FIX CROSS-ACTOR WORKFLOW & DATA REFRESH
+
+## 10. Khắc phục tình trạng hồ sơ đã chuyển nhưng màn hình Actor khác không cập nhật
+
+Hiện tại khi một Actor gửi hồ sơ sang Actor khác, trạng thái backend đã thay đổi nhưng màn hình của Actor nhận vẫn giữ dữ liệu cũ.
+
+Đây là lỗi nghiêm trọng về đồng bộ giao diện.
+
+Ví dụ:
+
+Purchasing Staff gửi phiếu → Owner/Manager không nhìn thấy ngay.
+
+Owner/Manager duyệt phiếu → Warehouse Staff không thấy phiếu chờ nhập.
+
+Manager tạo kế hoạch → Production Staff không thấy công việc mới.
+
+Maintenance Staff gửi báo cáo → Manager không thấy yêu cầu cần xử lý.
+
+Hãy xử lý tận gốc.
+
+Yêu cầu:
+
+1. Mỗi Actor phải lấy dữ liệu từ API theo quyền và trạng thái mới nhất.
+2. Sau khi gửi hồ sơ, hệ thống cập nhật các danh sách liên quan.
+3. Khi Actor nhận mở module, phải nhìn thấy hồ sơ được chuyển đến.
+4. Khi Actor đang mở module, dữ liệu phải được làm mới bằng cơ chế phù hợp như polling, WebSocket hoặc invalidation.
+5. Không sử dụng dữ liệu cache cũ làm nguồn trạng thái nghiệp vụ.
+6. Khi đăng xuất và đăng nhập Actor khác, phải xóa trạng thái giao diện và cache dữ liệu thuộc phiên cũ.
+7. Không dùng thông tin hồ sơ của Actor trước trong phiên Actor mới.
+8. Khi click thông báo, mở đúng hồ sơ.
+9. Khi thao tác thành công, dữ liệu mới phải xuất hiện mà không cần F5.
+10. Không dùng `window.location.reload()` như giải pháp chính.
+
+Cần xử lý:
+
+- Stale state.
+- API cache.
+- Race conditions.
+- Dynamic DOM events.
+- Missing refetch.
+- State invalidation.
+- Route state.
+- Authentication session changes.
+- Role switching.
+- Notification refresh.
+
+Không tạo nút Làm mới thủ công chỉ để che lỗi đồng bộ.
+
+---
+
+# VII. PRODUCTION PLANNING CORRECTION
+
+## 11. Một máy có thể được phân công nhiều nhân viên
+
+Hiện tại chức năng phân công nhân sự đang giới hạn một máy chỉ chọn được một nhân viên.
+
+Hãy sửa:
+
+**Một máy có thể có nhiều Production Staff làm việc trong cùng một ca hoặc công việc.**
+
+Ví dụ:
+
+Máy ép viên số 01:
+
+- Nguyễn Văn A.
+- Trần Văn B.
+- Lê Văn C.
+
+Cả ba cùng thuộc phân công của máy trong ca đó.
+
+Form phải hỗ trợ chọn nhiều nhân viên bằng searchable multi-select.
+
+Hiển thị danh sách đã chọn.
+
+Không tạo ba máy khác nhau chỉ vì có ba nhân viên.
+
+Database phải hỗ trợ quan hệ nhiều-nhiều giữa công việc/máy/ca và nhân viên.
+
+Có thể dùng bảng Production Assignment Members hoặc cấu trúc tương đương.
+
+Mỗi nhân viên được phân công phải xem được công việc của mình.
+
+Không được tạo trùng cùng nhân viên trong một phân công.
+
+Phải kiểm tra trạng thái máy trước khi phân công.
+
+## 12. Chỉ có một sản phẩm chính
+
+Bỏ lựa chọn nhiều loại sản phẩm trong form kế hoạch.
+
+Sản phẩm mặc định là:
+
+**Viên nén gỗ.**
+
+Không cho chọn Grade A/B ở bước lập kế hoạch.
+
+Không cho chọn Kho A hoặc Kho B ở bước lập kế hoạch.
+
+Kết quả phân loại chỉ được xác định sau QC.
+
+## 13. Tối giản nội dung kế hoạch sản xuất
+
+Loại bỏ những câu mô tả không cần thiết như:
+
+"Điều phối 7 công đoạn: Làm sạch → Băm → Nghiền → Sấy → KT sau sấy → Ép viên → Đóng bao Jumbo."
+
+Không hiển thị mô tả quy trình trên màn hình.
+
+Chỉ hiển thị:
+
+- Tiêu đề Kế hoạch sản xuất.
+- Nút Tạo kế hoạch.
+- Bộ lọc.
+- Danh sách kế hoạch.
+- Chi tiết.
+- Các nút thao tác.
+
+Trong form, chỉ hiển thị các trường và danh sách công đoạn khi cần chọn công việc.
+
+---
+
+# VIII. PRODUCTION SHIFT REPORT
+
+## 14. Bổ sung màn hình chi tiết báo cáo ca
+
+Hiện tại Production Staff gửi báo cáo nhưng Owner/Manager không xem được đầy đủ thông tin chi tiết trước khi duyệt.
+
+Hãy xây dựng màn hình chi tiết báo cáo ca hoàn chỉnh.
+
+Thông tin:
+
+- Mã báo cáo.
+- Kế hoạch liên quan.
+- Ngày sản xuất.
+- Ca sản xuất.
+- Công đoạn.
+- Máy móc.
+- Nhân viên thực hiện.
+- Khối lượng NVL đã cấp.
+- Khối lượng thực dùng.
+- Sản lượng thực tế.
+- Trạng thái công việc.
+- Sự cố.
+- Ghi chú.
+- Hình ảnh.
+- Thời gian gửi.
+- Người gửi.
+- Lịch sử xử lý.
+
+Owner/Manager phải xem được toàn bộ chi tiết trước khi quyết định.
+
+Action:
+
+- Phê duyệt.
+- Trả lại.
+- Từ chối nếu nghiệp vụ có nhánh từ chối hợp lệ.
+
+Nếu Trả lại, nhân viên sửa trên cùng báo cáo.
+
+Không tạo báo cáo mới.
+
+Không duyệt khi thiếu dữ liệu bắt buộc.
+
+Không được tạo LOT hoặc ghi nhận sản lượng trùng do phê duyệt hai lần.
+
+---
+
+# IX. QUALITY CONTROL & FINISHED GOODS CLASSIFICATION
+
+## 15. Sửa toàn bộ logic QC
+
+Quy trình QC hiện tại không đúng với thực tế mới được xác nhận.
+
+BATT hiện chỉ sản xuất viên nén gỗ.
+
+Tất cả sản phẩm hoàn tất QC hợp lệ sẽ được phân loại vào:
+
+**Kho A hoặc Kho B.**
+
+Không có nhánh QC không đạt rồi tự chuyển về những công đoạn sản xuất khác trong workflow hiện tại.
+
+Không thiết kế:
+
+- QC Failed → Re-drying.
+- QC Failed → Rework.
+- QC Failed → Reject Production.
+- QC Failed → Scrap.
+
+Loại bỏ các nhánh này khỏi workflow hiện hành nếu chúng được AI tự tạo ra.
+
+Nếu một lần QC thiếu dữ liệu hoặc hồ sơ chưa hoàn thành thì chỉ giữ trạng thái chưa hoàn tất QC; không tự coi đó là một loại sản phẩm lỗi.
+
+## 16. QC ghi thông số và phân loại A/B
+
+QC Staff chọn LOT cần kiểm tra.
+
+Ghi các lần QC theo quy trình hiện có, gồm ba lượt kiểm tra nếu đây vẫn là cấu hình QC đang được áp dụng.
+
+Các trường:
+
+- LOT.
+- Lần kiểm tra.
+- Thời gian.
+- Độ ẩm.
+- Độ tro.
+- Tạp chất.
+- Các chỉ tiêu đang được doanh nghiệp sử dụng.
+- Hình ảnh.
+- Ghi chú.
+
+Sau khi hoàn tất các lượt QC hợp lệ, QC Staff ghi nhận phân loại:
+
+- Kho A.
+- Kho B.
+
+Không tự đặt công thức phân loại dựa trên ngưỡng chưa được doanh nghiệp cung cấp.
+
+Chỉ cho phép ghi kết quả phân loại theo quyền và điều kiện QC hợp lệ.
+
+Nếu một LOT có nhiều phần hàng thuộc hai loại khác nhau, không được tự chia khối lượng theo tỷ lệ giả định; chỉ hỗ trợ tách khi có khối lượng từng phần được ghi nhận và xác nhận.
+
+## 17. Kho thành phẩm A/B
+
+Thiết kế lại kho thành phẩm gồm:
+
+**Kho A**
+
+**Kho B**
+
+Mỗi kho quản lý:
+
+- LOT.
+- Ngày sản xuất.
+- Khối lượng.
+- Số bao nếu có.
+- Kết quả QC.
+- Tồn khả dụng.
+- Trạng thái.
+
+Owner phải xem được tổng tồn Kho A và Kho B để quyết định bán với các mức giá khác nhau.
+
+Không tạo nhiều loại sản phẩm giả.
+
+Không bắt người dùng nhập lại tên sản phẩm.
+
+Việc QC phân loại không đồng nghĩa đã hoàn tất nhập kho vật lý.
+
+Warehouse Staff vẫn phải xác nhận nhập kho thành phẩm.
+
+Chỉ sau xác nhận nhập kho hợp lệ, tồn khả dụng mới được tăng.
+
+---
+
+# X. SUPPLIER & CUSTOMER MANAGEMENT
+
+## 18. Bổ sung quyền xem chi tiết và chỉnh sửa
+
+Hiện tại Owner vào quản lý Supplier/Customer nhưng không có nút xem chi tiết hoặc chỉnh sửa.
+
+Hãy bổ sung đầy đủ:
+
+- Tạo mới.
+- Xem chi tiết.
+- Chỉnh sửa.
+- Ngừng sử dụng.
+- Xem lịch sử giao dịch.
+
+Owner được thực hiện các chức năng master-data management đã xác nhận.
+
+Không chỉ hiển thị danh sách.
+
+### Supplier Detail
+
+Hiển thị:
+
+- Mã nhà cung cấp.
+- Tên.
+- Số điện thoại.
+- Địa chỉ.
+- Người liên hệ.
+- Trạng thái.
+- Lịch sử thu mua.
+- Tổng lượng đã mua nếu có dữ liệu.
+
+Không thêm phân loại mặt hàng NVL.
+
+### Customer Detail
+
+Hiển thị:
+
+- Mã khách hàng.
+- Tên.
+- Số điện thoại.
+- Địa chỉ.
+- Người liên hệ.
+- Trạng thái.
+- Lịch sử xuất hàng.
+- Công nợ liên quan nếu dữ liệu tài chính đã được ghi nhận.
+
+Các bản ghi có lịch sử giao dịch không được xóa làm mất liên kết.
+
+Có thể thay đổi trạng thái sử dụng theo quyền.
+
+## 19. Sửa tất cả màn hình chi tiết tương tự
+
+Không chỉ sửa Supplier/Customer.
+
+Hãy rà soát mọi module:
+
+- Thu mua.
+- Nhập kho.
+- Cấp NVL.
+- Kế hoạch sản xuất.
+- Phân công.
+- Báo cáo ca.
+- QC.
+- LOT.
+- Kho thành phẩm.
+- Đề xuất xuất.
+- Xuất kho.
+- Máy móc.
+- Sự cố.
+- Bảo trì.
+- Vật tư.
+- Chi phí.
+- Công nợ.
+
+Bất kỳ hồ sơ nào có thông tin cần đối chiếu, phê duyệt hoặc truy xuất đều phải có trang chi tiết đầy đủ.
+
+Không tạo action Xem nhưng chỉ hiển thị vài trường.
+
+Không để người dùng phải quay về trang khác mới xem được các thông tin liên quan.
+
+---
+
+# XI. OUTBOUND MANAGEMENT — COMPLETE REDESIGN
+
+## 20. Sửa quyền tạo đề xuất xuất hàng
+
+Warehouse Staff và Manager đều được tạo đề xuất xuất hàng.
+
+**Hai vai trò này có quyền đề xuất ngang nhau.**
+
+Không bắt Warehouse Staff phải chuyển qua Manager rồi Manager mới gửi Owner.
+
+Luồng mới:
+
+Warehouse Staff → Owner.
+
+Manager → Owner.
+
+Cả hai đều gửi thẳng Owner.
+
+Owner là người quyết định cuối cùng.
+
+Nếu Owner trực tiếp lập hồ sơ xuất hàng thì không bắt Owner tự duyệt lại, nhưng vẫn phải đáp ứng QC và điều kiện xuất hàng bắt buộc.
+
+## 21. Bỏ hiển thị Luồng A / Luồng B
+
+Không hiển thị những câu như:
+
+"Luồng A: Thủ kho → Quản lý → Owner."
+
+"Luồng B: Quản lý → Owner."
+
+Không cần người dùng lựa chọn luồng nghiệp vụ.
+
+Hệ thống tự xác định đường xử lý dựa trên vai trò người tạo.
+
+Tại màn hình tạo xuất hàng, chỉ hiển thị các trường nghiệp vụ cần thiết.
+
+Nếu cần phân biệt nguồn hàng, chỉ dùng:
+
+- Kho A.
+- Kho B.
+
+**Kho A/B là phân loại thành phẩm, không phải luồng phê duyệt.**
+
+Không dùng các nhãn này để thay thế trạng thái workflow.
+
+## 22. Manager không được quyết định hoặc đề xuất giá bán
+
+Khi Warehouse Staff hoặc Manager tạo đề xuất xuất hàng, chỉ nhập:
+
+- Kho A hoặc Kho B.
+- LOT.
+- Khối lượng dự kiến.
+- Khách hàng dự kiến.
+- Ghi chú.
+
+Không hiển thị trường nhập giá bán cho Warehouse Staff hoặc Manager.
+
+Không cho Manager nhập hoặc chỉnh sửa giá bán.
+
+Không cho Manager gửi đề xuất giá để hệ thống coi như giá chính thức.
+
+**Chỉ Owner có quyền quyết định giá bán cuối cùng.**
+
+Owner mở đề xuất, xem dữ liệu và nhập:
+
+- Giá bán.
+- Đơn vị giá.
+- Khách hàng cuối cùng.
+- Quyết định xuất hàng.
+
+Owner có thể thay đổi khách hàng mà Manager/Warehouse Staff đã đề xuất.
+
+Hệ thống phải lưu khách ban đầu và khách cuối cùng.
+
+Giá bán phải liên kết với giao dịch xuất hàng để tính doanh thu khi có đủ điều kiện ghi nhận.
+
+Nếu sản phẩm Kho A và Kho B được bán với giá khác nhau, Owner có quyền quyết định mức giá tương ứng theo từng giao dịch.
+
+Không tự đặt bảng giá cố định khi chưa được xác nhận.
+
+## 23. Phê duyệt xuất hàng
+
+Owner xem:
+
+- Người đề xuất.
+- Khách hàng dự kiến.
+- Kho A/B.
+- LOT.
+- Khối lượng.
+- Tồn khả dụng.
+- QC theo ca.
+- QC xuất hàng.
+- Giá bán do Owner quyết định.
+- Hình ảnh.
+- Lịch sử.
+
+Action:
+
+- Phê duyệt.
+- Trả lại.
+- Từ chối.
+
+Nếu QC xuất có sai khác cần quyết định, Owner phải xử lý trước khi cho phép xuất.
+
+Sau khi Approved, hồ sơ mới đi tiếp đến bước chuẩn bị giao hàng.
+
+Duyệt xuất hàng không tự trừ tồn.
+
+---
+
+# XII. WAREHOUSE DISPATCH CORRECTION
+
+## 24. Bổ sung quyền từ chối xuất kho
+
+Warehouse Staff không phải lúc nào cũng phải đồng ý giao hàng.
+
+Khi nhận yêu cầu đã được Owner phê duyệt, Warehouse Staff phải có hai action:
+
+**Xuất kho | Từ chối**
+
+Nếu Xuất kho:
+
+- Kiểm tra người nhận.
+- Kiểm tra xe.
+- Kiểm tra LOT.
+- Kiểm tra khối lượng.
+- Áp dụng FIFO.
+- Đính kèm chứng từ nếu cần.
+- Xác nhận giao thực tế.
+- Giảm tồn theo lượng thực giao.
+
+Nếu Từ chối:
+
+- Bắt nhập lý do.
+- Không giảm tồn.
+- Lưu người từ chối.
+- Lưu thời gian.
+- Thông báo Owner/Manager.
+- Chuyển hồ sơ sang trạng thái chờ xử lý lại.
+
+Owner/Manager phải xem được nguyên nhân.
+
+Nếu sau khi xử lý cần quyết định lại về xuất hàng, người có thẩm quyền phải thực hiện quyết định phù hợp.
+
+Không tự cho phép giao hàng chỉ vì hồ sơ đã từng được Owner duyệt.
+
+Không xác nhận hai lần cùng một giao dịch.
+
+## 25. Rút gọn tên nút
+
+Tất cả action button phải có tên ngắn gọn, rõ nghĩa.
+
+Ví dụ:
+
+Sai:
+
+"Xác nhận bàn giao và trừ kho thành phẩm"
+
+Đúng:
+
+**Xuất kho**
+
+Sai:
+
+"Xác nhận tiếp nhận nguyên vật liệu và cộng tồn kho"
+
+Đúng:
+
+**Nhập kho**
+
+Sai:
+
+"Gửi yêu cầu lên Chủ doanh nghiệp phê duyệt"
+
+Đúng:
+
+**Gửi duyệt**
+
+Sai:
+
+"Xem thông tin chi tiết của báo cáo"
+
+Đúng:
+
+**Chi tiết**
+
+Sai:
+
+"Xác nhận phê duyệt báo cáo sản xuất"
+
+Đúng:
+
+**Phê duyệt**
+
+Sai:
+
+"Thực hiện từ chối yêu cầu và ghi nhận lý do"
+
+Đúng:
+
+**Từ chối**
+
+Những tác động mặc định như tăng/giảm tồn phải được thực hiện đúng trong backend.
+
+Không cần giải thích các tác động hiển nhiên bằng câu dài trên nút.
+
+Tuy nhiên, các thông tin quan trọng như khối lượng thực giao, người nhận, mức tiền và cảnh báo chênh lệch vẫn phải được hiển thị đầy đủ để tránh thao tác sai.
+
+---
+
+# XIII. MAINTENANCE & MATERIAL PURCHASING
+
+## 26. Owner và Manager đều được quản lý bảo trì
+
+Cả Owner và Manager được thực hiện các hành động quản lý:
+
+- Xem yêu cầu sửa chữa.
+- Tạo yêu cầu sửa chữa trong phạm vi được cấp.
+- Tiếp nhận và phân công.
+- Theo dõi.
+- Xem báo cáo.
+- Xác nhận hoàn thành.
+- Tạo yêu cầu mua vật tư.
+- Quyết định vật tư theo đúng thẩm quyền.
+
+Maintenance Staff vẫn được thực hiện các nghiệp vụ chuyên môn của mình.
+
+## 27. Một yêu cầu được mua nhiều vật tư
+
+Hiện tại khi tạo yêu cầu vật tư chưa xem được đầy đủ danh sách trong chi tiết.
+
+Hãy sửa:
+
+Một yêu cầu có thể chứa nhiều item.
+
+Ví dụ:
+
+Yêu cầu vật tư BT-001:
+
+- Vòng bi: 4 cái.
+- Dây curoa: 2 cái.
+- Dầu bôi trơn: 5 lít.
+
+Form phải có:
+
+- Thêm vật tư.
+- Xóa dòng chưa gửi.
+- Số lượng.
+- Đơn vị.
+- Lý do.
+
+Sau khi gửi, màn hình chi tiết phải hiển thị đầy đủ tất cả dòng vật tư.
+
+Không chỉ hiển thị tiêu đề yêu cầu.
+
+## 28. Phê duyệt theo từng vật tư
+
+Với yêu cầu từ Maintenance Staff, Owner/Manager có thể duyệt hoặc từ chối từng item theo quyền.
+
+Nút trên mỗi dòng:
+
+- Duyệt.
+- Từ chối.
+
+Không sử dụng combobox quyết định.
+
+Từ chối phải có lý do.
+
+Nếu Manager tự tạo đề xuất chi phí mua vật tư, phải gửi Owner phê duyệt theo quy tắc tài chính mới.
+
+Nếu Owner tạo, quyết định thuộc Owner được ghi nhận ngay; không cần tự phê duyệt lại.
+
+Tuy nhiên, duyệt mua không đồng nghĩa vật tư đã được mua.
+
+## 29. Bổ sung ghi nhận giá vật tư mua thực tế
+
+Hiện tại chỉ có bước duyệt vật tư nhưng không có nơi ghi số tiền đã mua.
+
+Hãy bổ sung bước **Ghi nhận mua vật tư** hoặc chức năng tương đương ngay trong hồ sơ yêu cầu được duyệt.
+
+Thông tin:
+
+- Vật tư.
+- Số lượng được duyệt.
+- Số lượng thực mua.
+- Đơn giá thực mua.
+- Thành tiền.
+- Ngày mua.
+- Nhà cung cấp nếu có.
+- Người ghi nhận.
+- Hóa đơn/chứng từ.
+- Ghi chú.
+
+Tổng tiền của từng dòng được tính theo số lượng thực mua nhân đơn giá tương ứng.
+
+Không lấy số lượng đề xuất làm số lượng đã mua.
+
+Không tự ghi chi phí chỉ vì yêu cầu được duyệt.
+
+Chỉ người có quyền mới được ghi nhận giao dịch mua thực tế.
+
+Khi giao dịch mua được xác nhận hợp lệ, dữ liệu được liên kết sang quản trị tài chính.
+
+Không tạo hai khoản chi trùng cho cùng một lần mua vật tư.
+
+---
+
+# XIV. FINANCIAL MANAGEMENT — NEW MAJOR FEATURE
+
+## 30. Bổ sung quản trị tài chính cho BATT
+
+Hiện tại BATT PPMS chưa có đầy đủ các chức năng:
+
+- Doanh thu.
+- Công nợ.
+- Chi phí vận hành.
+- Chi phí xăng dầu.
+- Chi phí sửa chữa.
+- Chi phí mua vật tư.
+- Báo cáo tài chính theo dữ liệu hiện có.
+
+Hãy bổ sung nhóm chức năng **Tài chính**.
+
+Không chỉ tạo Dashboard hiển thị số giả.
+
+Dữ liệu phải liên kết với các giao dịch kinh doanh thực tế.
+
+## 31. Revenue Management
+
+Owner được xem Dashboard doanh thu.
+
+Thông tin:
+
+- Doanh thu theo thời gian.
+- Doanh thu theo khách hàng.
+- Doanh thu từ Kho A.
+- Doanh thu từ Kho B.
+- Khối lượng đã giao.
+- Giá bán đã được Owner xác nhận.
+- Giá trị giao dịch.
+- Tình trạng thanh toán.
+
+Phải phân biệt:
+
+- Giá trị bán hàng.
+- Doanh thu theo chính sách ghi nhận đã xác nhận.
+- Tiền đã thu.
+
+Không tự coi tất cả đơn đã duyệt là doanh thu.
+
+Không coi Owner phê duyệt xuất hàng là khách đã thanh toán.
+
+Chỉ sử dụng dữ liệu giao hàng và giá bán hợp lệ cùng chính sách ghi nhận doanh thu được doanh nghiệp xác nhận.
+
+Các công thức tài chính phức tạp chưa được xác nhận không được tự đặt.
+
+## 32. Receivables & Payables
+
+Tạo chức năng Công nợ.
+
+### Công nợ phải thu
+
+Theo dõi:
+
+- Customer.
+- Chứng từ bán hàng.
+- Số tiền phải thu.
+- Số tiền đã thu.
+- Số dư chưa thu.
+- Ngày đến hạn nếu có.
+- Lịch sử thanh toán.
+- Trạng thái.
+
+### Công nợ phải trả
+
+Theo dõi:
+
+- Supplier.
+- Hồ sơ mua.
+- Số tiền phải trả.
+- Số tiền đã thanh toán.
+- Số dư còn phải trả.
+- Ngày đến hạn nếu có.
+- Lịch sử thanh toán.
+
+Phải có giao dịch thanh toán thực tế để ghi nhận đã thu/đã chi.
+
+Không tự coi phiếu mua đã duyệt là đã thanh toán.
+
+Không tính công nợ nếu chưa có số liệu và điều kiện ghi nhận cần thiết.
+
+## 33. Expense Management
+
+Quản lý các khoản chi phí thực tế như:
+
+- Xăng dầu.
+- Mua vật tư bảo trì.
+- Sửa chữa.
+- Vận chuyển.
+- Chi phí vận hành khác.
+
+Màn hình Chi phí gồm:
+
+- Mã chi phí.
+- Ngày phát sinh.
+- Nhóm chi phí.
+- Nội dung.
+- Số tiền.
+- Đơn vị hoặc người liên quan.
+- Hồ sơ nghiệp vụ liên kết nếu có.
+- Chứng từ.
+- Người tạo.
+- Người phê duyệt.
+- Trạng thái.
+
+Không thêm những danh mục chi phí không có nhu cầu quản lý cụ thể nếu không cần thiết.
+
+## 34. Quy trình phê duyệt tài chính
+
+**Manager tạo đề xuất chi phí → Owner duyệt → Bộ phận có quyền thực hiện/ghi nhận khoản chi thực tế.**
+
+**Owner trực tiếp tạo khoản chi thuộc quyền → Không phải tự duyệt → Chuyển sang bước xử lý thực tế thích hợp.**
+
+Không tự đánh dấu đã thanh toán nếu mới được phê duyệt.
+
+Nếu đã có chứng từ và ghi nhận thanh toán hợp lệ, trạng thái thanh toán phải dựa trên giao dịch thực tế.
+
+Trả lại/Từ chối phải có lý do.
+
+Owner phải xem được toàn bộ chi tiết khoản chi trước khi quyết định.
+
+## 35. Financial Dashboard
+
+Owner Dashboard bổ sung:
+
+- Giá trị bán hàng đủ điều kiện ghi nhận.
+- Tiền đã thu.
+- Công nợ phải thu.
+- Công nợ phải trả.
+- Tổng chi phí ghi nhận.
+- Chi phí xăng dầu.
+- Chi phí mua vật tư.
+- Chi phí sửa chữa.
+- Biểu đồ theo tháng.
+- Các khoản chờ phê duyệt.
+
+Không tự tạo lợi nhuận ròng, giá vốn hoặc COGS nếu thiếu chính sách hạch toán và dữ liệu cần thiết.
+
+Manager chỉ được xem phần tài chính theo quyền được cấp.
+
+Admin không được xem báo cáo kinh doanh hoặc công nợ chỉ vì có quyền quản lý tài khoản.
+
+---
+
+# XV. RESET PASSWORD UI CORRECTION
+
+## 36. Thiết kế lại Forgot Password theo từng màn hình
+
+Hiện tại Reset Password hiển thị đồng thời:
+
+- Username.
+- OTP.
+- New Password.
+- Confirm Password.
+
+Đây là thiết kế không phù hợp.
+
+Hãy chuyển thành từng bước độc lập.
+
+### STEP 1 — Xác minh tài khoản
+
+Màn hình chỉ có:
+
+- Tên đăng nhập.
+- Nút Tiếp tục.
+
+Sau khi gửi yêu cầu hợp lệ, chuyển sang bước 2.
+
+Không hiển thị các trường OTP và mật khẩu mới tại bước này.
+
+### STEP 2 — OTP
+
+Màn hình chỉ có:
+
+- Nhập OTP.
+- Nút Xác minh.
+- Gửi lại mã theo giới hạn phù hợp.
+
+Chỉ khi OTP được backend xác minh hợp lệ mới chuyển sang bước 3.
+
+### STEP 3 — New Password
+
+Màn hình chỉ có:
+
+- Mật khẩu mới.
+- Xác nhận mật khẩu mới.
+- Nút Đặt lại mật khẩu.
+
+Sau khi thành công:
+
+- Kết thúc luồng reset.
+- Vô hiệu OTP đã sử dụng.
+- Chuyển về Login.
+- Người dùng đăng nhập bằng mật khẩu mới.
+
+Sử dụng giao diện tối giản.
+
+Không hiển thị tất cả các form cùng lúc.
+
+OTP `123` chỉ sử dụng ở môi trường local testing được cấu hình rõ ràng, không hiển thị/gợi ý trên giao diện và tuyệt đối không dùng trong production.
+
+Production phải có cơ chế gửi và xác minh OTP an toàn; khi chưa tích hợp thì không được giả lập gửi mã thành công.
+
+---
+
+# XVI. GLOBAL UI/UX OPTIMIZATION
+
+## 37. Giao diện dành cho doanh nghiệp đã biết cách sử dụng
+
+Không cần hiển thị các câu giải thích như:
+
+"Điều phối 7 công đoạn..."
+
+"Đây là nơi quản lý..."
+
+"Người dùng có thể tạo..."
+
+"Chức năng này cho phép..."
+
+"Quy trình gồm bước A, B, C..."
+
+"Luồng A..."
+
+"Luồng B..."
+
+Không hiển thị:
+
+- Tutorial.
+- Guide.
+- Welcome.
+- Help Card.
+- Demo Banner.
+- Workflow Explanation.
+- Developer Notes.
+- Permission Description.
+- Technical Information.
+
+Các màn hình chỉ cần:
+
+- Tiêu đề.
+- Dữ liệu.
+- Trường nhập.
+- Bộ lọc.
+- Trạng thái.
+- Nút thao tác.
+- Chi tiết.
+- Lịch sử khi cần.
+
+Không xóa các thông tin quan trọng để tránh sai nghiệp vụ.
+
+## 38. Chuẩn hóa toàn bộ action button
+
+Sử dụng nhãn ngắn:
+
+- Tạo mới.
+- Chi tiết.
+- Chỉnh sửa.
+- Gửi duyệt.
+- Phê duyệt.
+- Trả lại.
+- Từ chối.
+- Nhập kho.
+- Xuất kho.
+- Phân công.
+- Ghi kết quả.
+- Hoàn thành.
+- Xác nhận.
+- Hủy.
+- Đóng.
+- Lưu.
+
+Không viết cả câu mô tả nghiệp vụ lên button.
+
+Không sử dụng combobox cho hành động phê duyệt.
+
+Màu sắc:
+
+- Primary: Xanh dương.
+- Approved: Xanh lá.
+- Returned: Cam.
+- Rejected: Đỏ.
+- Neutral: Xám.
+
+Chỉ hiển thị nút khi người dùng có quyền và hồ sơ ở đúng trạng thái.
+
+## 39. Detail Screen Standardization
+
+Tất cả hồ sơ có trang chi tiết.
+
+Giao diện một trang.
+
+Không chia nhiều tab không cần thiết.
+
+Chia thành các section rõ ràng:
+
+- Thông tin chung.
+- Dữ liệu nghiệp vụ.
+- Dữ liệu liên kết.
+- Hình ảnh/chứng từ.
+- Lịch sử xử lý.
+- Action buttons.
+
+Không hiển thị raw ID.
+
+Phải hiển thị họ tên thực tế.
+
+Hỗ trợ Back của trình duyệt hoặc nút đóng popup.
+
+## 40. Sidebar & Navigation
+
+Sidebar gọn.
+
+Chỉ mở một nhóm tại một thời điểm.
+
+Menu theo vai trò.
+
+Không hiển thị module không có quyền.
+
+Khi chuyển Actor hoặc đăng nhập phiên khác, giao diện phải lấy lại menu và dữ liệu theo quyền mới.
+
+Không giữ menu của Actor trước.
+
+## 41. Update UI Immediately
+
+Sau các thao tác:
+
+- Tạo.
+- Chỉnh sửa.
+- Gửi.
+- Duyệt.
+- Trả lại.
+- Từ chối.
+- Nhập kho.
+- Xuất kho.
+- Cập nhật tài khoản.
+- Đổi mật khẩu.
+
+Phải cập nhật giao diện tự động.
+
+Không cần F5.
+
+Phải có loading state.
+
+Phải chống double click.
+
+Phải hiển thị toast ngắn gọn khi thành công/lỗi.
+
+---
+
+# XVII. DATABASE & API REFACTORING
+
+## 42. Sửa các quan hệ dữ liệu
+
+Rà soát và cập nhật:
+
+- Purchase Assignment → Purchase Result.
+- Assignment → Purchasing Staff.
+- Assignment → Notes.
+- Purchase Result → Warehouse Receipt.
+- Production Plan → Machines.
+- Production Assignment → Multiple Staff.
+- Shift Report → Production Plan.
+- QC Tests → LOT.
+- LOT → Warehouse A/B.
+- Outbound Proposal → Owner Decision.
+- Dispatch → Warehouse Confirmation.
+- Maintenance Request → Material Items.
+- Material Items → Actual Purchase Records.
+- Shipment → Sales Value.
+- Sales Value → Receivables.
+- Expense → Payment.
+- All Records → Evidence/Audit.
+
+Không tạo quan hệ sai chỉ để thuận tiện hiển thị.
+
+## 43. Hiển thị tên thay ID
+
+Thay các trường hiển thị như:
+
+`created_by: 2`
+
+bằng:
+
+`Người tạo: Nguyễn Văn A`
+
+Tương tự với:
+
+- Người duyệt.
+- Người gửi.
+- Người từ chối.
+- Nhân viên được giao.
+- Người xác nhận kho.
+- Người mua vật tư.
+
+Backend nên trả về display fields phù hợp.
+
+## 44. Data Integrity
+
+Mọi giao dịch phải:
+
+- Có quan hệ đúng.
+- Có kiểm tra quyền.
+- Có kiểm tra trạng thái.
+- Có validation.
+- Có audit.
+- Có transaction khi ảnh hưởng nhiều bảng.
+
+Không cho:
+
+- Duplicate receipt.
+- Duplicate dispatch.
+- Double stock movement.
+- Negative stock.
+- Double approval side effects.
+- Unauthorized updates.
+- Invalid state transitions.
+
+## 45. State Machine
+
+Rà soát các trạng thái và action của từng nghiệp vụ.
+
+Mỗi chức năng phải phân biệt rõ:
+
+- Tạo hồ sơ.
+- Gửi.
+- Duyệt.
+- Trả lại.
+- Từ chối.
+- Xác nhận thực tế.
+- Hoàn tất.
+- Yêu cầu xử lý lại.
+
+Không dùng chung một trạng thái cho nhiều hành vi khác nhau.
+
+Không tự đánh dấu Completed chỉ vì Owner/Manager đã phê duyệt.
+
+Các trạng thái mới cần phù hợp với quy trình nghiệp vụ và không phát sinh vòng phê duyệt giả.
+
+---
+
+# XVIII. END-TO-END TESTING
+
+## 46. Kiểm thử theo từng Actor
+
+### Owner
+
+Kiểm tra:
+
+- Kế thừa Manager.
+- Tạo hồ sơ không tự duyệt lại.
+- Quản lý Customer/Supplier.
+- Duyệt mua.
+- Xem báo cáo ca.
+- Quản lý máy.
+- Quản lý bảo trì.
+- Duyệt vật tư.
+- Đặt giá bán.
+- Duyệt xuất hàng.
+- Xem tài chính, doanh thu, công nợ, chi phí.
+
+### Manager
+
+Kiểm tra:
+
+- Duyệt nghiệp vụ thuộc quyền.
+- Tạo phân công.
+- Lập kế hoạch.
+- Duyệt báo cáo.
+- Tạo đề xuất xuất hàng.
+- Không nhập giá bán.
+- Không tự quyết định xuất cuối cùng.
+- Tạo đề xuất chi phí gửi Owner.
+
+### Purchasing Staff
+
+Kiểm tra:
+
+- Nhận phân công.
+- Xem ghi chú.
+- Nhập kết quả trên phân công.
+- Gửi hồ sơ.
+- Sửa Returned.
+- Không tự duyệt.
+
+### Warehouse Staff
+
+Kiểm tra:
+
+- Nhận phiếu mua đã Approved.
+- Nhập kho.
+- Từ chối nhập kho.
+- Nhìn thấy phiếu mới ngay khi chuyển tới.
+- Cấp NVL.
+- Nhập thành phẩm.
+- Tạo đề xuất xuất gửi thẳng Owner.
+- Xuất kho.
+- Từ chối xuất kho.
+
+### Production Staff
+
+Kiểm tra:
+
+- Một máy nhiều nhân viên.
+- Nhìn thấy công việc.
+- Gửi báo cáo.
+- Xem trạng thái.
+- Sửa Returned.
+
+### QC Staff
+
+Kiểm tra:
+
+- Ghi ba lần QC.
+- Phân loại Kho A/B.
+- Không có luồng tự động trả về công đoạn sản xuất.
+- Không tự tạo tiêu chuẩn QC.
+- Không nhập kho thay thủ kho.
+
+### Maintenance Staff
+
+Kiểm tra:
+
+- Nhận việc.
+- Gửi báo cáo.
+- Tạo yêu cầu nhiều vật tư.
+- Xem chi tiết từng vật tư.
+- Theo dõi kết quả duyệt.
+
+### Admin
+
+Kiểm tra:
+
+- Quản lý tài khoản.
+- Không xem dữ liệu sản xuất/tài chính.
+- Không tự cấp quyền nghiệp vụ trái chính sách.
+
+## 47. Kịch bản nghiệp vụ bắt buộc
+
+### Scenario A — Thu mua
+
+Manager tạo phân công 10.000 kg, có ghi chú.
+
+Purchasing Staff mở phân công, nhìn thấy ghi chú.
+
+Nhân viên ghi lượng thực mua 9.500 kg.
+
+Manager phê duyệt.
+
+Warehouse Staff thấy hồ sơ chờ nhập mà không cần F5.
+
+Warehouse Staff có thể Nhập kho hoặc Từ chối.
+
+Nếu từ chối, Owner/Manager thấy lý do.
+
+Tồn chỉ tăng sau xác nhận nhập hợp lệ.
+
+### Scenario B — Một máy nhiều nhân viên
+
+Manager tạo kế hoạch cho máy ép số 01.
+
+Chọn ba nhân viên.
+
+Cả ba nhìn thấy công việc.
+
+Database giữ quan hệ chính xác.
+
+Không phát sinh ba bản ghi máy trùng.
+
+### Scenario C — QC
+
+Production Staff hoàn tất báo cáo sản xuất viên nén gỗ.
+
+QC Staff ghi các thông số.
+
+Sau các kiểm tra hợp lệ, phân loại thành Kho A hoặc Kho B.
+
+Warehouse Staff nhận thành phẩm.
+
+Chỉ sau đó tồn kho tương ứng mới tăng.
+
+### Scenario D — Xuất hàng
+
+Warehouse Staff tạo đề xuất từ Kho A.
+
+Gửi thẳng Owner.
+
+Không qua Manager.
+
+Owner quyết định giá bán và phê duyệt theo điều kiện hợp lệ.
+
+Manager ghi thông tin người nhận.
+
+Warehouse Staff kiểm tra.
+
+Warehouse Staff có hai nút:
+
+Xuất kho | Từ chối.
+
+Nếu từ chối, Owner/Manager xem được lý do và xử lý lại.
+
+Nếu xuất kho hợp lệ, tồn thành phẩm giảm theo lượng thực tế.
+
+### Scenario E — Bảo trì và chi phí
+
+Manager tạo yêu cầu mua ba vật tư.
+
+Owner duyệt.
+
+Người có quyền ghi số lượng và đơn giá mua thực tế.
+
+Hệ thống tính đúng thành tiền.
+
+Khoản chi được liên kết với hồ sơ bảo trì.
+
+Không ghi trùng chi phí.
+
+Owner nhìn thấy chi phí trong báo cáo tài chính phù hợp.
+
+### Scenario F — Reset Password
+
+Người dùng nhập Username.
+
+Chuyển OTP.
+
+OTP đúng mới chuyển màn hình nhập mật khẩu mới.
+
+Không hiển thị cả ba form cùng lúc.
+
+### Scenario G — Đồng bộ Actor
+
+Actor A gửi hồ sơ.
+
+Actor B nhận được hồ sơ trong danh sách của mình mà không cần F5.
+
+Actor B xử lý.
+
+Actor A nhìn thấy trạng thái mới.
+
+Kết quả nhất quán giữa frontend và database.
+
+---
+
+# XIX. FINAL IMPLEMENTATION REQUIREMENTS
+
+## 48. Thực hiện trực tiếp trên source hiện tại
+
+Không chỉ đưa ra cách làm.
+
+Hãy thực hiện:
+
+1. Phân tích source.
+2. Kiểm tra toàn bộ RBAC.
+3. Sửa các workflow theo quyết định mới.
+4. Sửa database và migration.
+5. Sửa API.
+6. Sửa các trang thiếu chi tiết.
+7. Bổ sung hành động từ chối nhập/xuất kho.
+8. Sửa phân công nhiều nhân viên.
+9. Sửa QC phân loại Kho A/B.
+10. Sửa xuất hàng chỉ Owner quyết định giá.
+11. Hoàn thiện Supplier/Customer management.
+12. Bổ sung tài chính.
+13. Hoàn thiện bảo trì/vật tư và ghi giá thực mua.
+14. Sửa reset password nhiều bước.
+15. Xóa các mô tả/hướng dẫn UI dư thừa.
+16. Chuẩn hóa button.
+17. Sửa đồng bộ dữ liệu cross-Actor.
+18. Bổ sung dữ liệu kiểm thử.
+19. Chạy unit/integration/E2E tests.
+20. Sửa lỗi phát hiện.
+21. Bàn giao mã nguồn chạy được.
+
+## 49. Không hiển thị nội dung kỹ thuật trên giao diện khách hàng
+
+Không hiển thị:
+
+- Business Stories.
+- Business Rules.
+- Permission Matrix.
+- Workflow explanations.
+- Demo Mode.
+- Test Mode.
+- Developer Notes.
+- API Documentation.
+- Tutorial.
+- Getting Started.
+- Các đoạn văn mô tả chức năng không cần thiết.
+
+Các màn hình phải giống một ứng dụng ERP/MES nội bộ chuyên nghiệp.
+
+## 50. Báo cáo kết quả triển khai
+
+Sau khi hoàn thành, báo cáo ngắn gọn:
+
+- Chức năng đã sửa.
+- Chức năng đã bổ sung.
+- Migration đã thực hiện.
+- Các bài kiểm thử thực sự đã chạy.
+- Lỗi còn tồn tại.
+- Quy tắc chưa thể triển khai vì thiếu quyết định nghiệp vụ.
+
+Không tuyên bố hoàn thành khi chưa kiểm chứng.
+
+Không thay thế mã nguồn bằng hình ảnh mockup.
+
+Không đưa ra các nút chỉ có giao diện mà không có API và xử lý thật.
+
+---
+
+# FINAL COMMAND
+
+**HÃY TRỰC TIẾP REFACTOR TOÀN BỘ BATT PPMS DỰA TRÊN NHỮNG QUY TẮC NGHIỆP VỤ MỚI NHẤT TRONG PROMPT NÀY.**
+
+Các yêu cầu quan trọng nhất:
+
+- Một nhóm NVL chung.
+- Một sản phẩm viên nén gỗ.
+- QC phân loại Kho A/B sau sản xuất.
+- Ghi chú phân công phải hiển thị cho nhân viên thu mua.
+- Ghi kết quả mua ngay trên phân công.
+- Owner kế thừa toàn bộ Manager.
+- Owner tạo hồ sơ thuộc quyền không cần tự duyệt.
+- Manager tự duyệt việc thuộc quyền và gửi Owner khi cần quyết định cấp Owner.
+- Warehouse Staff có quyền từ chối nhập kho/xuất kho.
+- Warehouse Staff và Manager ngang quyền tạo đề xuất xuất và gửi thẳng Owner.
+- Chỉ Owner quyết định giá bán.
+- Một máy có thể có nhiều nhân viên cùng ca.
+- Báo cáo ca phải xem được chi tiết trước khi duyệt.
+- Owner được xem, chỉnh sửa và quản lý Customer/Supplier.
+- Yêu cầu vật tư có nhiều item và xem được toàn bộ chi tiết.
+- Có ghi nhận giá mua vật tư thực tế.
+- Có quản trị doanh thu, công nợ và chi phí.
+- Reset Password theo ba màn hình độc lập.
+- Button ngắn gọn.
+- Không có các đoạn hướng dẫn thừa.
+- Không cần F5 khi luân chuyển hồ sơ giữa các Actor.
+- Toàn bộ dữ liệu được liên kết chính xác.
+- Mọi chức năng đều có backend thực hiện, không phải nút giả.
+
+**KHÔNG DỪNG Ở VIỆC PHÂN TÍCH HOẶC ĐỀ XUẤT. HÃY VIẾT CODE, SỬA SOURCE, TÍCH HỢP, KIỂM THỬ VÀ HOÀN THIỆN ỨNG DỤNG.**
+
+BATT PPMS phải vận hành như một hệ thống quản lý sản xuất thực tế, có giao diện tối giản, trực quan, chuyên nghiệp, đủ chức năng và đúng quy trình doanh nghiệp.
+
+BẮT ĐẦU THỰC HIỆN TRÊN PROJECT HIỆN TẠI.

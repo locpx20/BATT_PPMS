@@ -1,7 +1,7 @@
 /**
- * BATT PPMS - Relational Data Store & Business Transaction Engine
+ * BATT PPMS - Relational Data Store & Business Transaction Engine (V6.1 Refactored)
  * CÔNG TY CỔ PHẦN NĂNG LƯỢNG TÁI TẠO BATT
- * Ensures Data Integrity, Stock Consistency, FIFO Dispatch and Full Audit Trail
+ * Implements Single NVL, Kho A/B Finished Goods, Finance, Multi-Staff Machine, and Rejection Workflows
  */
 
 import {
@@ -18,15 +18,18 @@ import {
   MachineFailureReport,
   MaintenanceReport,
   MaintenanceMaterialRequest,
+  SaleInvoice,
+  ExpenseRecord,
   StockMovement,
   AuditLog,
   InternalNotification,
   RoleCode,
+  FinishedWarehouseType,
+  ExpenseCategory,
 } from '../types';
 
-const STORAGE_KEY = 'batt_ppms_database_v6';
+const STORAGE_KEY = 'batt_ppms_database_v6_1';
 
-// 8 Official System Users
 export const INITIAL_USERS: User[] = [
   {
     id: 'u-owner-01',
@@ -84,6 +87,17 @@ export const INITIAL_USERS: User[] = [
     createdAt: '2026-01-15T08:00:00Z',
   },
   {
+    id: 'u-prod-02',
+    username: 'congnhan_minh',
+    fullName: 'Đặng Nhật Minh (Công nhân)',
+    email: 'minh.dn@battenergy.vn',
+    phone: '0966.333.222',
+    role: 'S',
+    isActive: true,
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150',
+    createdAt: '2026-01-15T08:00:00Z',
+  },
+  {
     id: 'u-qc-01',
     username: 'kcs_lan',
     fullName: 'Đỗ Thị Ngọc Lan (Trưởng nhóm KCS)',
@@ -118,7 +132,6 @@ export const INITIAL_USERS: User[] = [
   },
 ];
 
-// Initial Suppliers
 export const INITIAL_SUPPLIERS: Supplier[] = [
   {
     id: 'sup-01',
@@ -128,8 +141,9 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     address: 'KCN Hàm Kiệm, Huyện Hàm Thuận Nam, Bình Thuận',
     contactPerson: 'Ông Nguyễn Đức Thắng',
     status: 'ACTIVE',
-    materialTypes: ['Mùn cưa keo tràm', 'Dăm gỗ tràm'],
-    notes: 'Đối tác chiến lược cung cấp mùn cưa độ ẩm < 45%',
+    notes: 'Đối tác chiến lược cung cấp nguyên vật liệu dăm & mùn cưa',
+    totalPurchasedKg: 49550,
+    totalPaidVnd: 37162500,
   },
   {
     id: 'sup-02',
@@ -139,7 +153,8 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     address: 'Thị trấn Ma Lâm, Hàm Thuận Bắc, Bình Thuận',
     contactPerson: 'Bà Lê Thị Mỹ',
     status: 'ACTIVE',
-    materialTypes: ['Dăm bào cao su', 'Mùn cưa cao su'],
+    totalPurchasedKg: 17850,
+    totalPaidVnd: 14637000,
   },
   {
     id: 'sup-03',
@@ -149,7 +164,8 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     address: 'Xã Đức Thuận, Huyện Tánh Linh, Bình Thuận',
     contactPerson: 'Ông Trần Văn Ba',
     status: 'ACTIVE',
-    materialTypes: ['Cây củi tạp', 'Dăm gỗ keo lá tràm'],
+    totalPurchasedKg: 29500,
+    totalPaidVnd: 23010000,
   },
   {
     id: 'sup-04',
@@ -159,7 +175,8 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     address: 'Võ Xu, Đức Linh, Bình Thuận',
     contactPerson: 'Ông Vũ Hoàng Nam',
     status: 'ACTIVE',
-    materialTypes: ['Mùn cưa thông', 'Vỏ cây băm'],
+    totalPurchasedKg: 14900,
+    totalPaidVnd: 10728000,
   },
   {
     id: 'sup-05',
@@ -169,7 +186,6 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     address: 'KCN Sông Mây, Trảng Bom, Đồng Nai',
     contactPerson: 'Bà Hoàng Kim Oanh',
     status: 'ACTIVE',
-    materialTypes: ['Dăm bào khô', 'Mùn cưa nội thất'],
   },
   {
     id: 'sup-06',
@@ -179,31 +195,27 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     address: 'Bông Trang, Xuyên Mộc, Bà Rịa - Vũng Tàu',
     contactPerson: 'Ông Đặng Quốc Dũng',
     status: 'ACTIVE',
-    materialTypes: ['Dăm gỗ bạch đàn'],
   },
   {
     id: 'sup-07',
     code: 'NCC-07',
-    name: 'Công ty TNHH Phế liệu Lâm nghiệp Đại Việt',
+    name: 'Công ty TNHH Đại Việt',
     phone: '0274.377.7777',
     address: 'Tân Uyên, Bình Dương',
     contactPerson: 'Bà Mai Phương Thúy',
     status: 'ACTIVE',
-    materialTypes: ['Mùn cưa ép khối'],
   },
   {
     id: 'sup-08',
     code: 'NCC-08',
-    name: 'Cơ sở Thu gom Dăm gỗ Sông Phan',
+    name: 'Cơ sở Thu gom Sông Phan',
     phone: '0252.344.8888',
     address: 'Sông Phan, Hàm Tân, Bình Thuận',
     contactPerson: 'Ông Lê Hùng',
     status: 'ACTIVE',
-    materialTypes: ['Dăm gỗ tạp địa phương'],
   },
 ];
 
-// Initial Customers
 export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cus-01',
@@ -214,6 +226,8 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     contactPerson: 'Mr. Kenji Sato / Trần Anh Tuấn',
     status: 'ACTIVE',
     paymentTerms: 'LC At Sight, kiểm hàng ENplus-A1 tại cảng Cái Mép',
+    totalOrderedKg: 10000,
+    totalReceivableVnd: 38500000,
   },
   {
     id: 'cus-02',
@@ -234,6 +248,8 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     contactPerson: 'Kỹ sư trưởng Lê Thanh Phong',
     status: 'ACTIVE',
     paymentTerms: 'Thanh toán chuyển khoản sau 15 ngày đối soát khối lượng',
+    totalOrderedKg: 5000,
+    totalReceivableVnd: 18000000,
   },
   {
     id: 'cus-04',
@@ -267,18 +283,17 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   },
 ];
 
-// Initial Machines across all 7 stages
 export const INITIAL_MACHINES: Machine[] = [
   {
     id: 'm-01',
     code: 'M-CLEAN-01',
-    name: 'Máy sàng làm sạch tạp chất và tách kim loại từ tính',
+    name: 'Máy sàng làm sạch tạp chất và tách kim loại',
     stage: 'CLEANING',
     model: 'Rotary Screen BATT-50T',
     capacity: '35 tấn/giờ',
     status: 'OPERATIONAL',
     installationDate: '2024-03-15',
-    location: 'Khu vực tiếp nhận NVL thô',
+    location: 'Khu tiếp nhận NVL',
   },
   {
     id: 'm-02',
@@ -294,7 +309,7 @@ export const INITIAL_MACHINES: Machine[] = [
   {
     id: 'm-03',
     code: 'M-MILL-01',
-    name: 'Hệ thống máy nghiền búa siêu mịn mùn cưa',
+    name: 'Hệ thống máy nghiền búa siêu mịn',
     stage: 'MILLING',
     model: 'Hammer Mill HM-800',
     capacity: '20 tấn/giờ',
@@ -373,26 +388,24 @@ export interface AppDatabase {
   failures: MachineFailureReport[];
   maintenanceReports: MaintenanceReport[];
   materialRequests: MaintenanceMaterialRequest[];
+  saleInvoices: SaleInvoice[];
+  expenseRecords: ExpenseRecord[];
   stockMovements: StockMovement[];
   auditLogs: AuditLog[];
   notifications: InternalNotification[];
-  rawInventoryBalanceKg: number; // Tồn kho NVL hiện hành (kg)
-  finishedInventoryBalanceKg: number; // Tồn kho thành phẩm hiện hành (kg)
+  rawInventoryBalanceKg: number; // Tồn kho NVL duy nhất (kg)
+  finishedInventoryWarehouseA_Kg: number; // Kho A (kg)
+  finishedInventoryWarehouseB_Kg: number; // Kho B (kg)
 }
 
 function getInitialDatabase(): AppDatabase {
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const timeStr = now.toISOString();
-
-  // Initial Seed Data to allow thorough testing of all 18 workflows
   const purchases: PurchaseAssignment[] = [
     {
       id: 'po-01',
       code: 'PO-2026-001',
       supplierId: 'sup-01',
       supplierName: 'Công ty TNHH Lâm Nghiệp Hàm Thuận',
-      rawMaterialType: 'Mùn cưa keo tràm',
+      rawMaterialType: 'Nguyên vật liệu',
       plannedQuantityKg: 25000,
       plannedDate: '2026-10-24',
       assignedStaffId: 'u-purchasing-01',
@@ -401,14 +414,14 @@ function getInitialDatabase(): AppDatabase {
       createdByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
       createdAt: '2026-10-24T08:00:00Z',
       status: 'RECEIVED',
-      notes: 'Thu mua mùn cưa phục vụ ca 1 và ca 2',
+      assignmentNotes: 'Cân tại trạm cân ngã tư Ma Lâm, lưu ý kiểm tra độ ẩm sơ bộ < 45%',
       weighedQuantityKg: 24800,
       unitPriceVnd: 750,
       totalAmountVnd: 18600000,
       weighedAt: '2026-10-24T10:15:00Z',
       scaleTicketImageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600',
       invoiceImageUrl: 'https://images.unsplash.com/photo-1554415707-9e42acb69990?w=600',
-      purchasingNotes: 'Xe chở 1 chuyến xe ben 3 chân, hao hụt bốc dỡ 200kg',
+      purchasingResultNotes: 'Xe chở 1 chuyến xe ben 3 chân, hao hụt bốc dỡ 200kg',
       submittedAt: '2026-10-24T10:30:00Z',
       approvedById: 'u-mgr-01',
       approvedByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
@@ -424,7 +437,7 @@ function getInitialDatabase(): AppDatabase {
       code: 'PO-2026-002',
       supplierId: 'sup-02',
       supplierName: 'Xưởng Chế biến Gỗ Minh Phú',
-      rawMaterialType: 'Dăm bào cao su',
+      rawMaterialType: 'Nguyên vật liệu',
       plannedQuantityKg: 18000,
       plannedDate: '2026-10-24',
       assignedStaffId: 'u-purchasing-01',
@@ -433,13 +446,13 @@ function getInitialDatabase(): AppDatabase {
       createdByName: 'Nguyễn Văn Thành (Giám đốc)',
       createdAt: '2026-10-24T09:00:00Z',
       status: 'APPROVED',
-      notes: 'Dăm bào khô, độ ẩm tốt cần nhập gấp',
+      assignmentNotes: 'Dăm bào khô chất lượng tốt cần cân nhập gấp trong ngày',
       weighedQuantityKg: 17850,
       unitPriceVnd: 820,
       totalAmountVnd: 14637000,
       weighedAt: '2026-10-24T13:45:00Z',
       scaleTicketImageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600',
-      purchasingNotes: 'Phiếu cân số 4821 Trạm cân ngã tư Ma Lâm',
+      purchasingResultNotes: 'Phiếu cân số 4821 Trạm cân ngã tư Ma Lâm',
       submittedAt: '2026-10-24T14:00:00Z',
       approvedById: 'u-owner-01',
       approvedByName: 'Nguyễn Văn Thành (Giám đốc)',
@@ -450,7 +463,7 @@ function getInitialDatabase(): AppDatabase {
       code: 'PO-2026-003',
       supplierId: 'sup-03',
       supplierName: 'Hợp tác xã Gỗ Rừng Trồng Tánh Linh',
-      rawMaterialType: 'Dăm gỗ keo lá tràm',
+      rawMaterialType: 'Nguyên vật liệu',
       plannedQuantityKg: 30000,
       plannedDate: '2026-10-25',
       assignedStaffId: 'u-purchasing-01',
@@ -459,14 +472,14 @@ function getInitialDatabase(): AppDatabase {
       createdByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
       createdAt: '2026-10-24T15:00:00Z',
       status: 'SUBMITTED',
-      notes: 'Chờ duyệt kết quả cân thực tế từ Tánh Linh về',
+      assignmentNotes: 'Chờ duyệt kết quả cân thực tế từ Tánh Linh về',
       weighedQuantityKg: 29500,
       unitPriceVnd: 780,
       totalAmountVnd: 23010000,
       weighedAt: '2026-10-24T16:30:00Z',
       scaleTicketImageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600',
       invoiceImageUrl: 'https://images.unsplash.com/photo-1554415707-9e42acb69990?w=600',
-      purchasingNotes: 'Đã kèm biên bản cân điện tử trạm cầu Hàm Tân',
+      purchasingResultNotes: 'Đã kèm biên bản cân điện tử trạm cầu Hàm Tân',
       submittedAt: '2026-10-24T16:45:00Z',
     },
     {
@@ -474,7 +487,7 @@ function getInitialDatabase(): AppDatabase {
       code: 'PO-2026-004',
       supplierId: 'sup-04',
       supplierName: 'Công ty Cổ phần Nông Lâm Sản Đức Linh',
-      rawMaterialType: 'Mùn cưa thông',
+      rawMaterialType: 'Nguyên vật liệu',
       plannedQuantityKg: 15000,
       plannedDate: '2026-10-25',
       assignedStaffId: 'u-purchasing-01',
@@ -483,7 +496,7 @@ function getInitialDatabase(): AppDatabase {
       createdByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
       createdAt: '2026-10-24T10:00:00Z',
       status: 'RETURNED',
-      notes: 'Bị trả lại do thiếu hóa đơn VAT kèm phiếu cân',
+      assignmentNotes: 'Hàng vụ hè thu, cần gửi kèm hóa đơn VAT',
       weighedQuantityKg: 14900,
       unitPriceVnd: 720,
       totalAmountVnd: 10728000,
@@ -496,7 +509,7 @@ function getInitialDatabase(): AppDatabase {
       code: 'PO-2026-005',
       supplierId: 'sup-05',
       supplierName: 'Doanh nghiệp Tư nhân Gỗ Nam Thành',
-      rawMaterialType: 'Dăm bào khô',
+      rawMaterialType: 'Nguyên vật liệu',
       plannedQuantityKg: 20000,
       plannedDate: '2026-10-26',
       assignedStaffId: 'u-purchasing-01',
@@ -505,18 +518,17 @@ function getInitialDatabase(): AppDatabase {
       createdByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
       createdAt: '2026-10-24T16:00:00Z',
       status: 'ASSIGNED',
-      notes: 'Phân công đi cân nhận ngày 26/10',
+      assignmentNotes: 'Phân công đi cân nhận ngày 26/10, liên hệ trước bà Oanh',
     },
   ];
 
-  // Initial Production Plans
   const productionPlans: ProductionPlan[] = [
     {
       id: 'plan-01',
       code: 'PLAN-2026-042',
       productionDate: '2026-10-24',
       shift: 'CA_1',
-      productName: 'Viên nén gỗ Tràm xuất khẩu ENplus-A1',
+      productName: 'Viên nén gỗ',
       targetQuantityKg: 20000,
       status: 'COMPLETED',
       createdById: 'u-mgr-01',
@@ -529,8 +541,8 @@ function getInitialDatabase(): AppDatabase {
           stage: 'CLEANING',
           machineId: 'm-01',
           machineName: 'Máy sàng làm sạch tạp chất (M-CLEAN-01)',
-          operatorId: 'u-prod-01',
-          operatorName: 'Hoàng Văn Hùng (Tổ trưởng Sản xuất)',
+          operatorIds: ['u-prod-01', 'u-prod-02'],
+          operatorNames: ['Hoàng Văn Hùng', 'Đặng Nhật Minh'],
           targetQuantityKg: 24000,
         },
         {
@@ -538,8 +550,8 @@ function getInitialDatabase(): AppDatabase {
           stage: 'DRYING',
           machineId: 'm-04',
           machineName: 'Hệ thống lò sấy thùng quay (M-DRY-01)',
-          operatorId: 'u-prod-01',
-          operatorName: 'Hoàng Văn Hùng (Tổ trưởng Sản xuất)',
+          operatorIds: ['u-prod-01'],
+          operatorNames: ['Hoàng Văn Hùng'],
           targetQuantityKg: 22000,
         },
         {
@@ -547,8 +559,8 @@ function getInitialDatabase(): AppDatabase {
           stage: 'PELLETIZING',
           machineId: 'm-06',
           machineName: 'Máy ép viên nén CPM-1 (M-PELLET-01)',
-          operatorId: 'u-prod-01',
-          operatorName: 'Hoàng Văn Hùng (Tổ trưởng Sản xuất)',
+          operatorIds: ['u-prod-01', 'u-prod-02'],
+          operatorNames: ['Hoàng Văn Hùng', 'Đặng Nhật Minh'],
           targetQuantityKg: 20000,
         },
         {
@@ -556,8 +568,8 @@ function getInitialDatabase(): AppDatabase {
           stage: 'PACKAGING',
           machineId: 'm-08',
           machineName: 'Trạm cân đóng bao Jumbo 1 tấn (M-PACK-01)',
-          operatorId: 'u-prod-01',
-          operatorName: 'Hoàng Văn Hùng (Tổ trưởng Sản xuất)',
+          operatorIds: ['u-prod-01'],
+          operatorNames: ['Hoàng Văn Hùng'],
           targetQuantityKg: 20000,
         },
       ],
@@ -567,21 +579,21 @@ function getInitialDatabase(): AppDatabase {
       code: 'PLAN-2026-043',
       productionDate: '2026-10-24',
       shift: 'CA_2',
-      productName: 'Viên nén gỗ Công nghiệp Grade B',
+      productName: 'Viên nén gỗ',
       targetQuantityKg: 18000,
       status: 'IN_PROGRESS',
       createdById: 'u-owner-01',
       createdByName: 'Nguyễn Văn Thành (Giám đốc)',
       createdAt: '2026-10-24T07:30:00Z',
-      notes: 'Sản xuất cho đơn hàng cấp nhà máy nhiệt điện',
+      notes: 'Sản xuất liên tục, giữ nhiệt độ buồng sấy 85-90°C',
       assignments: [
         {
           id: 'tsk-05',
           stage: 'MILLING',
           machineId: 'm-03',
           machineName: 'Hệ thống máy nghiền búa (M-MILL-01)',
-          operatorId: 'u-prod-01',
-          operatorName: 'Hoàng Văn Hùng (Tổ trưởng Sản xuất)',
+          operatorIds: ['u-prod-01', 'u-prod-02'],
+          operatorNames: ['Hoàng Văn Hùng', 'Đặng Nhật Minh'],
           targetQuantityKg: 20000,
         },
         {
@@ -589,32 +601,30 @@ function getInitialDatabase(): AppDatabase {
           stage: 'PELLETIZING',
           machineId: 'm-06',
           machineName: 'Máy ép viên nén CPM-1 (M-PELLET-01)',
-          operatorId: 'u-prod-01',
-          operatorName: 'Hoàng Văn Hùng (Tổ trưởng Sản xuất)',
+          operatorIds: ['u-prod-01'],
+          operatorNames: ['Hoàng Văn Hùng'],
           targetQuantityKg: 18000,
         },
       ],
     },
   ];
 
-  // Material issues
   const materialIssues: RawMaterialIssue[] = [
     {
       id: 'mat-iss-01',
       code: 'MAT-ISS-001',
       planId: 'plan-01',
       planCode: 'PLAN-2026-042',
-      rawMaterialType: 'Mùn cưa keo tràm',
+      rawMaterialType: 'Nguyên vật liệu',
       issuedQuantityKg: 22500,
       recipientDepartment: 'Tổ Vận hành Lò Sấy & Ép Viên',
       issuedAt: '2026-10-24T06:15:00Z',
       issuedById: 'u-wh-01',
       issuedByName: 'Phạm Thị Phương Thảo (Thủ kho)',
-      notes: 'Cấp đủ cho ca 1 sản xuất viên nén xuất khẩu',
+      notes: 'Cấp đủ cho ca 1 sản xuất',
     },
   ];
 
-  // Shift reports
   const shiftReports: ShiftReport[] = [
     {
       id: 'rep-01',
@@ -643,7 +653,7 @@ function getInitialDatabase(): AppDatabase {
       id: 'rep-02',
       code: 'REP-2026-089',
       planId: 'plan-02',
-      planCode: 'PLAN-2026-042',
+      planCode: 'PLAN-2026-043',
       productionDate: '2026-10-24',
       shift: 'CA_2',
       stage: 'PELLETIZING',
@@ -660,7 +670,6 @@ function getInitialDatabase(): AppDatabase {
     },
   ];
 
-  // Initial Lots & 3 independent QC tests
   const lots: LotItem[] = [
     {
       id: 'lot-01',
@@ -669,17 +678,16 @@ function getInitialDatabase(): AppDatabase {
       planCode: 'PLAN-2026-042',
       shiftReportId: 'rep-01',
       productionDate: '2026-10-24',
-      productName: 'Viên nén gỗ Tràm xuất khẩu ENplus-A1',
+      productName: 'Viên nén gỗ',
       quantityKg: 20000,
       jumboBagsCount: 20,
-      grade: 'GRADE_A',
-      qcStatus: 'QC_PASSED',
-      reDryCount: 0,
+      targetWarehouse: 'KHO_A', // Phân loại vào Kho A sau khi QC
+      qcStatus: 'QC_COMPLETED',
       isReceivedInWarehouse: true,
       receivedAt: '2026-10-24T15:00:00Z',
       receivedById: 'u-wh-01',
       receivedByName: 'Phạm Thị Phương Thảo (Thủ kho)',
-      availableQuantityKg: 10000, // 10,000 kg committed/dispatched, 10,000 available
+      availableQuantityKg: 10000, // 10,000 đã xuất, 10,000 còn lại
       createdAt: '2026-10-24T14:30:00Z',
       tests: [
         {
@@ -691,8 +699,7 @@ function getInitialDatabase(): AppDatabase {
           ashPercent: 0.65,
           impuritiesPercent: 0.12,
           calorificValueKcalKg: 4620,
-          imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600',
-          notes: 'Mẫu đầu ca 1: Đạt chuẩn ENplus-A1, bề mặt sáng mịn',
+          notes: 'Mẫu đầu ca 1: Đạt chuẩn xuất khẩu ENplus-A1',
         },
         {
           testNumber: 2,
@@ -703,7 +710,6 @@ function getInitialDatabase(): AppDatabase {
           ashPercent: 0.70,
           impuritiesPercent: 0.15,
           calorificValueKcalKg: 4600,
-          imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600',
           notes: 'Mẫu giữa ca: Độ ẩm ổn định, độ bền cơ học cao',
         },
         {
@@ -715,8 +721,7 @@ function getInitialDatabase(): AppDatabase {
           ashPercent: 0.68,
           impuritiesPercent: 0.11,
           calorificValueKcalKg: 4635,
-          imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600',
-          notes: 'Mẫu cuối ca: Đạt 3/3 lần kiểm tra, xác nhận Grade A',
+          notes: 'Mẫu cuối ca: Đạt 3/3 lần kiểm tra, xác nhận phân vào Kho A',
         },
       ],
     },
@@ -727,13 +732,12 @@ function getInitialDatabase(): AppDatabase {
       planCode: 'PLAN-2026-043',
       shiftReportId: 'rep-02',
       productionDate: '2026-10-24',
-      productName: 'Viên nén gỗ Công nghiệp Grade B',
+      productName: 'Viên nén gỗ',
       quantityKg: 18000,
       jumboBagsCount: 18,
-      grade: 'GRADE_B',
+      targetWarehouse: 'KHO_B', // Phân loại vào Kho B sau khi QC
       qcStatus: 'IN_TESTING',
-      reDryCount: 0,
-      isReceivedInWarehouse: false, // Waiting for 3 QC tests and warehouse receipt
+      isReceivedInWarehouse: false,
       availableQuantityKg: 18000,
       createdAt: '2026-10-24T18:00:00Z',
       tests: [
@@ -746,30 +750,28 @@ function getInitialDatabase(): AppDatabase {
           ashPercent: 1.25,
           impuritiesPercent: 0.35,
           calorificValueKcalKg: 4410,
-          imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600',
-          notes: 'Kiểm tra lần 1: Đạt tiêu chuẩn công nghiệp Grade B',
+          notes: 'Kiểm tra lần 1: Đạt tiêu chuẩn phân loại Kho B (Công nghiệp)',
         },
       ],
     },
   ];
 
-  // Outbound Proposals
   const outboundProposals: OutboundProposal[] = [
     {
       id: 'out-01',
       code: 'OUT-PROP-2026-015',
-      flow: 'FLOW_B', // Flow B: Manager creates -> Owner decides
+      creatorRole: 'M',
+      sourceWarehouse: 'KHO_A',
       customerId: 'cus-01',
       customerName: 'Sumitomo Forestry Co., Ltd (Japan)',
-      productName: 'Viên nén gỗ Tràm xuất khẩu ENplus-A1',
+      productName: 'Viên nén gỗ',
       lotId: 'lot-01',
       lotCode: 'LOT-20261024-01',
-      grade: 'GRADE_A',
       requestedQuantityKg: 10000,
       unitPriceVnd: 3850,
       totalValueVnd: 38500000,
       status: 'DISPATCHED',
-      notes: 'Đơn hàng xuất xưởng số lượng 10 bao Jumbo giao cảng Cái Mép',
+      notes: 'Đơn hàng xuất xưởng 10 bao Jumbo giao cảng Cái Mép',
       createdById: 'u-mgr-01',
       createdByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
       createdAt: '2026-10-24T15:15:00Z',
@@ -783,7 +785,6 @@ function getInitialDatabase(): AppDatabase {
       outboundQcTestedById: 'u-qc-01',
       outboundQcTestedByName: 'Đỗ Thị Ngọc Lan (Trưởng nhóm KCS)',
       outboundQcTestedAt: '2026-10-24T15:45:00Z',
-      outboundQcMismatchDetected: false,
       recipientName: 'Đặng Tuấn Kiệt',
       recipientPhone: '0908.123.456',
       truckLicensePlate: '72C-184.92',
@@ -801,24 +802,19 @@ function getInitialDatabase(): AppDatabase {
     {
       id: 'out-02',
       code: 'OUT-PROP-2026-016',
-      flow: 'FLOW_A', // Flow A: Warehouse Staff creates -> Manager reviews -> Owner decides
+      creatorRole: 'WS',
+      sourceWarehouse: 'KHO_A',
       customerId: 'cus-03',
       customerName: 'Nhà máy Nhiệt điện Sinh khối Duyên Hải',
-      productName: 'Viên nén gỗ Tràm xuất khẩu ENplus-A1',
+      productName: 'Viên nén gỗ',
       lotId: 'lot-01',
       lotCode: 'LOT-20261024-01',
-      grade: 'GRADE_A',
       requestedQuantityKg: 5000,
-      unitPriceVnd: 3600,
-      totalValueVnd: 18000000,
       status: 'PENDING_OWNER_APPROVAL',
-      notes: 'Thủ kho đề xuất xuất 5 bao Jumbo còn lại của LOT-20261024-01',
+      notes: 'Thủ kho đề xuất xuất 5 bao Jumbo còn lại trong Kho A',
       createdById: 'u-wh-01',
       createdByName: 'Phạm Thị Phương Thảo (Thủ kho)',
       createdAt: '2026-10-24T16:45:00Z',
-      managerReviewedById: 'u-mgr-01',
-      managerReviewedByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
-      managerReviewedAt: '2026-10-24T17:00:00Z',
       outboundQcTested: true,
       outboundQcMoisture: 7.9,
       outboundQcAsh: 0.67,
@@ -826,7 +822,6 @@ function getInitialDatabase(): AppDatabase {
       outboundQcTestedById: 'u-qc-01',
       outboundQcTestedByName: 'Đỗ Thị Ngọc Lan (Trưởng nhóm KCS)',
       outboundQcTestedAt: '2026-10-24T17:15:00Z',
-      outboundQcMismatchDetected: false,
       recipientName: 'Võ Minh Tâm',
       recipientPhone: '0918.456.789',
       truckLicensePlate: '86C-235.88',
@@ -838,7 +833,6 @@ function getInitialDatabase(): AppDatabase {
     },
   ];
 
-  // Machine Failures & Maintenance
   const failures: MachineFailureReport[] = [
     {
       id: 'inc-01',
@@ -846,9 +840,8 @@ function getInitialDatabase(): AppDatabase {
       machineId: 'm-07',
       machineName: 'Máy ép viên nén CPM-2 (M-PELLET-02)',
       failureTime: '2026-10-24T09:30:00Z',
-      symptoms: 'Rung lắc mạnh ổ bi chính, nhiệt độ gối đỡ tăng quá 85°C kèm tiếng rít kim loại',
+      symptoms: 'Rung lắc mạnh ổ bi chính, nhiệt độ gối đỡ tăng quá 85°C',
       severity: 'HIGH',
-      imageUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600',
       reportedById: 'u-prod-01',
       reportedByName: 'Hoàng Văn Hùng (Tổ trưởng Sản xuất)',
       reportedAt: '2026-10-24T09:40:00Z',
@@ -881,24 +874,40 @@ function getInitialDatabase(): AppDatabase {
           decidedById: 'u-mgr-01',
           decidedByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
           decidedAt: '2026-10-24T10:30:00Z',
+          isPurchased: true,
+          actualPurchasedQuantity: 2,
+          actualUnitPriceVnd: 4200000,
+          actualTotalAmountVnd: 8400000,
+          purchasedAt: '2026-10-24T11:00:00Z',
+          supplierName: 'Đại lý Vòng bi SKF Bình Thuận',
+          purchasedById: 'u-maint-01',
+          purchasedByName: 'Vũ Tiến Dũng (Kỹ sư Cơ điện)',
         },
         {
           id: 'item-02',
-          materialName: 'Mỡ bò chịu nhiệt cao cấp Mobilith SHC 220',
+          materialName: 'Mỡ bò chịu nhiệt Mobilith SHC 220',
           requestedQuantity: 5,
           unit: 'Tuýp 400g',
-          reason: 'Bơm bôi trơn lại toàn bộ cụm gối đỡ trục chính máy ép',
+          reason: 'Bơm bôi trơn cụm gối đỡ trục chính máy ép',
           status: 'APPROVED',
           decidedById: 'u-mgr-01',
           decidedByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
           decidedAt: '2026-10-24T10:30:00Z',
+          isPurchased: true,
+          actualPurchasedQuantity: 5,
+          actualUnitPriceVnd: 380000,
+          actualTotalAmountVnd: 1900000,
+          purchasedAt: '2026-10-24T11:00:00Z',
+          supplierName: 'Nhà phân phối dầu mỡ nhờn Tân Phát',
+          purchasedById: 'u-maint-01',
+          purchasedByName: 'Vũ Tiến Dũng (Kỹ sư Cơ điện)',
         },
         {
           id: 'item-03',
           materialName: 'Dây curoa Gates 8V-2500',
           requestedQuantity: 8,
           unit: 'Sợi',
-          reason: 'Dự phòng thêm cho bộ truyền động motor chính',
+          reason: 'Dự phòng bộ truyền động motor chính',
           status: 'REJECTED',
           rejectionReason: 'Dây curoa hiện tại kiểm tra vẫn còn tốt, chỉ duyệt vòng bi và mỡ bôi trơn để sửa dứt điểm sự cố.',
           decidedById: 'u-mgr-01',
@@ -911,41 +920,113 @@ function getInitialDatabase(): AppDatabase {
 
   const maintenanceReports: MaintenanceReport[] = [];
 
-  // Stock movements (Physical Ledger)
+  // Financial Initial Records
+  const saleInvoices: SaleInvoice[] = [
+    {
+      id: 'inv-01',
+      code: 'INV-2026-001',
+      proposalId: 'out-01',
+      proposalCode: 'OUT-PROP-2026-015',
+      customerId: 'cus-01',
+      customerName: 'Sumitomo Forestry Co., Ltd (Japan)',
+      warehouseType: 'KHO_A',
+      productName: 'Viên nén gỗ',
+      dispatchedQuantityKg: 10000,
+      unitPriceVnd: 3850,
+      totalAmountVnd: 38500000,
+      paidAmountVnd: 20000000,
+      remainingAmountVnd: 18500000,
+      paymentStatus: 'PARTIALLY_PAID',
+      invoiceDate: '2026-10-24',
+      paymentHistory: [
+        {
+          amount: 20000000,
+          paidAt: '2026-10-24T17:00:00Z',
+          recordedByName: 'Nguyễn Văn Thành (Giám đốc)',
+          notes: 'Tạm ứng đợt 1 qua LC ngân hàng Vietcombank',
+        },
+      ],
+    },
+  ];
+
+  const expenseRecords: ExpenseRecord[] = [
+    {
+      id: 'exp-01',
+      code: 'EXP-2026-001',
+      expenseDate: '2026-10-24',
+      category: 'MAINTENANCE_PARTS',
+      title: 'Mua vòng bi SKF & mỡ bôi trơn máy ép CPM-2',
+      amountVnd: 10300000, // 8.4M + 1.9M
+      status: 'PAID',
+      linkedEntityId: 'mat-req-01',
+      linkedEntityCode: 'MAT-REQ-2026-009',
+      recipientOrVendor: 'Đại lý Vòng bi SKF & Dầu nhớt Tân Phát',
+      createdById: 'u-maint-01',
+      createdByName: 'Vũ Tiến Dũng (Kỹ sư Cơ điện)',
+      createdAt: '2026-10-24T11:00:00Z',
+      approvedById: 'u-owner-01',
+      approvedByName: 'Nguyễn Văn Thành (Giám đốc)',
+      approvedAt: '2026-10-24T11:15:00Z',
+      paidAt: '2026-10-24T11:30:00Z',
+      paidById: 'u-owner-01',
+      paidByName: 'Nguyễn Văn Thành (Giám đốc)',
+    },
+    {
+      id: 'exp-02',
+      code: 'EXP-2026-002',
+      expenseDate: '2026-10-24',
+      category: 'FUEL_OIL',
+      title: 'Đổ dầu DO cho 2 xe xúc lật cấp mùn cưa và lò sấy',
+      amountVnd: 12500000,
+      status: 'PAID',
+      recipientOrVendor: 'Cửa hàng Xăng dầu Petrolimex Hàm Kiệm',
+      createdById: 'u-mgr-01',
+      createdByName: 'Trần Quốc Bảo (Trưởng phòng Vận hành)',
+      createdAt: '2026-10-24T08:00:00Z',
+      approvedById: 'u-owner-01',
+      approvedByName: 'Nguyễn Văn Thành (Giám đốc)',
+      approvedAt: '2026-10-24T08:30:00Z',
+      paidAt: '2026-10-24T09:00:00Z',
+      paidById: 'u-owner-01',
+      paidByName: 'Nguyễn Văn Thành (Giám đốc)',
+    },
+  ];
+
   const stockMovements: StockMovement[] = [
     {
       id: 'sm-01',
       timestamp: '2026-10-24T11:30:00Z',
       materialCategory: 'RAW_MATERIAL',
-      materialName: 'Mùn cưa keo tràm',
+      materialName: 'Nguyên vật liệu',
       movementType: 'IN',
       quantityKg: 24750,
       referenceDocumentType: 'PURCHASE_RECEIPT',
       referenceDocumentCode: 'PO-2026-001',
       confirmedById: 'u-wh-01',
       confirmedByName: 'Phạm Thị Phương Thảo (Thủ kho)',
-      balanceAfterKg: 42250, // Starting was 17,500 + 24,750
-      notes: 'Nhập kho thực tế từ xe cân PO-2026-001 NCC Hàm Thuận',
+      balanceAfterKg: 44500,
+      notes: 'Nhập kho thực tế từ xe cân PO-2026-001',
     },
     {
       id: 'sm-02',
       timestamp: '2026-10-24T06:15:00Z',
       materialCategory: 'RAW_MATERIAL',
-      materialName: 'Mùn cưa keo tràm',
+      materialName: 'Nguyên vật liệu',
       movementType: 'OUT',
       quantityKg: 22500,
       referenceDocumentType: 'RAW_MATERIAL_ISSUE',
       referenceDocumentCode: 'MAT-ISS-001',
       confirmedById: 'u-wh-01',
       confirmedByName: 'Phạm Thị Phương Thảo (Thủ kho)',
-      balanceAfterKg: 19750,
+      balanceAfterKg: 22000,
       notes: 'Cấp NVL cho Kế hoạch sản xuất PLAN-2026-042',
     },
     {
       id: 'sm-03',
       timestamp: '2026-10-24T15:00:00Z',
       materialCategory: 'FINISHED_GOODS',
-      materialName: 'Viên nén gỗ Tràm xuất khẩu ENplus-A1',
+      materialName: 'Viên nén gỗ',
+      warehouseType: 'KHO_A',
       movementType: 'IN',
       quantityKg: 20000,
       referenceDocumentType: 'FINISHED_GOODS_RECEIPT',
@@ -954,13 +1035,14 @@ function getInitialDatabase(): AppDatabase {
       confirmedById: 'u-wh-01',
       confirmedByName: 'Phạm Thị Phương Thảo (Thủ kho)',
       balanceAfterKg: 20000,
-      notes: 'Thủ kho nhập 20 bao Jumbo LOT-20261024-01 sau khi QC Passed 3 lần',
+      notes: 'Nhập 20 bao Jumbo LOT-20261024-01 vào Kho A',
     },
     {
       id: 'sm-04',
       timestamp: '2026-10-24T16:30:00Z',
       materialCategory: 'FINISHED_GOODS',
-      materialName: 'Viên nén gỗ Tràm xuất khẩu ENplus-A1',
+      materialName: 'Viên nén gỗ',
+      warehouseType: 'KHO_A',
       movementType: 'OUT',
       quantityKg: 10000,
       referenceDocumentType: 'CUSTOMER_DISPATCH',
@@ -969,11 +1051,10 @@ function getInitialDatabase(): AppDatabase {
       confirmedById: 'u-wh-01',
       confirmedByName: 'Phạm Thị Phương Thảo (Thủ kho)',
       balanceAfterKg: 10000,
-      notes: 'Xuất 10 bao Jumbo cho xe 72C-184.92 khách hàng Sumitomo Japan',
+      notes: 'Xuất kho từ Kho A giao khách hàng Sumitomo (Xe 72C-184.92)',
     },
   ];
 
-  // Audit Logs
   const auditLogs: AuditLog[] = [
     {
       id: 'aud-01',
@@ -986,7 +1067,7 @@ function getInitialDatabase(): AppDatabase {
       entityId: 'po-01',
       entityCode: 'PO-2026-001',
       newState: 'ASSIGNED',
-      details: 'Phân công nhân viên Lê Văn Quang thu mua 25.000 kg Mùn cưa keo tràm từ NCC Hàm Thuận',
+      details: 'Phân công Lê Văn Quang thu mua 25.000 kg Nguyên vật liệu từ NCC Hàm Thuận',
     },
     {
       id: 'aud-02',
@@ -1014,59 +1095,16 @@ function getInitialDatabase(): AppDatabase {
       entityCode: 'PO-2026-001',
       previousState: 'SUBMITTED',
       newState: 'APPROVED',
-      details: 'Hồ sơ đầy đủ phiếu cân điện tử và hóa đơn',
-    },
-    {
-      id: 'aud-04',
-      timestamp: '2026-10-24T11:30:00Z',
-      actorId: 'u-wh-01',
-      actorName: 'Phạm Thị Phương Thảo',
-      actorRole: 'WS',
-      action: 'Xác nhận nhập kho NVL vật lý',
-      entityType: 'PURCHASE_ASSIGNMENT',
-      entityId: 'po-01',
-      entityCode: 'PO-2026-001',
-      previousState: 'APPROVED',
-      newState: 'RECEIVED',
-      details: 'Thực nhận 24.750 kg mùn cưa, tăng tồn kho NVL',
-    },
-    {
-      id: 'aud-05',
-      timestamp: '2026-10-24T15:30:00Z',
-      actorId: 'u-owner-01',
-      actorName: 'Nguyễn Văn Thành',
-      actorRole: 'O',
-      action: 'Phê duyệt xuất hàng cuối cùng',
-      entityType: 'OUTBOUND_PROPOSAL',
-      entityId: 'out-01',
-      entityCode: 'OUT-PROP-2026-015',
-      previousState: 'PENDING_OWNER_APPROVAL',
-      newState: 'APPROVED',
-      details: 'Duyệt bán 10.000 kg Grade A đơn giá 3.850 VND/kg cho Sumitomo Japan',
-    },
-    {
-      id: 'aud-06',
-      timestamp: '2026-10-24T16:30:00Z',
-      actorId: 'u-wh-01',
-      actorName: 'Phạm Thị Phương Thảo',
-      actorRole: 'WS',
-      action: 'Xác nhận xuất kho vật lý',
-      entityType: 'OUTBOUND_PROPOSAL',
-      entityId: 'out-01',
-      entityCode: 'OUT-PROP-2026-015',
-      previousState: 'APPROVED',
-      newState: 'DISPATCHED',
-      details: 'Bàn giao 10.000 kg cho tài xế Đặng Tuấn Kiệt (xe 72C-184.92), giảm tồn kho thành phẩm',
+      details: 'Quản lý duyệt hồ sơ chuyển bước chờ nhập kho',
     },
   ];
 
-  // Internal Notifications
   const notifications: InternalNotification[] = [
     {
       id: 'notif-01',
       recipientRole: 'O',
-      title: 'Đề xuất xuất hàng chờ duyệt',
-      message: 'Đề xuất OUT-PROP-2026-016 (5.000 kg - Khách hàng Duyên Hải) đang chờ Owner quyết định',
+      title: 'Đề xuất xuất hàng chờ Owner quyết định',
+      message: 'Đề xuất OUT-PROP-2026-016 (5.000 kg từ Kho A) đang chờ quyết định giá bán và duyệt xuất',
       entityType: 'OUTBOUND_PROPOSAL',
       entityId: 'out-02',
       targetView: 'outbound',
@@ -1075,31 +1113,9 @@ function getInitialDatabase(): AppDatabase {
     },
     {
       id: 'notif-02',
-      recipientRole: 'M',
-      title: 'Sự cố máy móc cần xử lý',
-      message: 'Sự cố INC-2026-031 trên máy ép M-PELLET-02 đã được phân công cho Vũ Tiến Dũng',
-      entityType: 'MACHINE_FAILURE',
-      entityId: 'inc-01',
-      targetView: 'maintenance',
-      createdAt: '2026-10-24T09:50:00Z',
-      isRead: true,
-    },
-    {
-      id: 'notif-03',
-      recipientRole: 'QC',
-      title: 'Yêu cầu kiểm tra QC ca 2',
-      message: 'LOT-20261024-02 đã xong kiểm tra lần 1, cần tiếp tục thực hiện lần 2 và 3',
-      entityType: 'LOT',
-      entityId: 'lot-02',
-      targetView: 'qc',
-      createdAt: '2026-10-24T18:30:00Z',
-      isRead: false,
-    },
-    {
-      id: 'notif-04',
       recipientRole: 'WS',
       title: 'NVL đã duyệt chờ nhập kho',
-      message: 'Phiếu thu mua PO-2026-002 (17.850 kg Dăm bào) đã được Owner phê duyệt, sẵn sàng tiếp nhận',
+      message: 'Phiếu thu mua PO-2026-002 (17.850 kg) đã được duyệt, sẵn sàng tiếp nhận hoặc từ chối',
       entityType: 'PURCHASE_ASSIGNMENT',
       entityId: 'po-02',
       targetView: 'raw-inventory',
@@ -1122,11 +1138,14 @@ function getInitialDatabase(): AppDatabase {
     failures,
     maintenanceReports,
     materialRequests,
+    saleInvoices,
+    expenseRecords,
     stockMovements,
     auditLogs,
     notifications,
-    rawInventoryBalanceKg: 19750 + 24750, // 44,500 kg
-    finishedInventoryBalanceKg: 10000,     // 10,000 kg
+    rawInventoryBalanceKg: 22000 + 24750, // 46,750 kg
+    finishedInventoryWarehouseA_Kg: 10000, // 10,000 kg Kho A
+    finishedInventoryWarehouseB_Kg: 0,     // 0 kg Kho B
   };
 }
 
@@ -1143,12 +1162,12 @@ class DatabaseService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.users && parsed.purchases && parsed.lots) {
+        if (parsed.users && parsed.purchases && parsed.saleInvoices) {
           return parsed;
         }
       }
     } catch {
-      // Local storage unreadable or corrupt, initialize clean seed
+      // fallback
     }
     const initial = getInitialDatabase();
     this.persist(initial);
@@ -1160,7 +1179,7 @@ class DatabaseService {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
     } catch {
-      // Fallback in-memory
+      // ignore
     }
     this.notify();
   }
@@ -1230,7 +1249,6 @@ class DatabaseService {
   // ==========================================
   public createPurchaseAssignment(params: {
     supplierId: string;
-    rawMaterialType: string;
     plannedQuantityKg: number;
     plannedDate: string;
     assignedStaffId: string;
@@ -1258,7 +1276,7 @@ class DatabaseService {
       code,
       supplierId: supplier.id,
       supplierName: supplier.name,
-      rawMaterialType: params.rawMaterialType,
+      rawMaterialType: 'Nguyên vật liệu', // Single unified material group!
       plannedQuantityKg: params.plannedQuantityKg,
       plannedDate: params.plannedDate,
       assignedStaffId: staff.id,
@@ -1267,7 +1285,7 @@ class DatabaseService {
       createdByName: params.creator.fullName,
       createdAt: new Date().toISOString(),
       status: 'ASSIGNED',
-      notes: params.notes,
+      assignmentNotes: params.notes,
     };
 
     this.data.purchases.unshift(assignment);
@@ -1280,14 +1298,14 @@ class DatabaseService {
       entityId: id,
       entityCode: code,
       newState: 'ASSIGNED',
-      details: `Phân công ${staff.fullName} thu mua ${params.plannedQuantityKg.toLocaleString('vi-VN')} kg ${params.rawMaterialType} từ ${supplier.name}`,
+      details: `Giao ${staff.fullName} thu mua ${params.plannedQuantityKg.toLocaleString('vi-VN')} kg từ ${supplier.name}`,
     });
 
     this.addNotification({
       recipientUserId: staff.id,
       recipientRole: 'PS',
       title: 'Phân công thu mua mới',
-      message: `Bạn được phân công thu mua ${params.plannedQuantityKg.toLocaleString('vi-VN')} kg ${params.rawMaterialType} (${code})`,
+      message: `Bạn được phân công thu mua ${params.plannedQuantityKg.toLocaleString('vi-VN')} kg (${code})`,
       entityType: 'PURCHASE_ASSIGNMENT',
       entityId: id,
       targetView: 'purchasing',
@@ -1303,7 +1321,7 @@ class DatabaseService {
     unitPriceVnd: number;
     scaleTicketImageUrl?: string;
     invoiceImageUrl?: string;
-    purchasingNotes?: string;
+    purchasingResultNotes?: string;
     user: User;
   }): { success: boolean; error?: string } {
     const p = this.data.purchases.find((x) => x.id === params.assignmentId);
@@ -1311,11 +1329,8 @@ class DatabaseService {
     if (p.status !== 'ASSIGNED' && p.status !== 'RETURNED') {
       return { success: false, error: 'Hồ sơ không ở trạng thái cho phép ghi kết quả' };
     }
-    if (params.weighedQuantityKg <= 0) {
-      return { success: false, error: 'Khối lượng cân thực tế phải lớn hơn 0' };
-    }
-    if (params.unitPriceVnd <= 0) {
-      return { success: false, error: 'Đơn giá phải lớn hơn 0' };
+    if (params.weighedQuantityKg <= 0 || params.unitPriceVnd <= 0) {
+      return { success: false, error: 'Khối lượng và đơn giá phải lớn hơn 0' };
     }
 
     const previousState = p.status;
@@ -1326,14 +1341,14 @@ class DatabaseService {
     p.submittedAt = new Date().toISOString();
     p.scaleTicketImageUrl = params.scaleTicketImageUrl || p.scaleTicketImageUrl;
     p.invoiceImageUrl = params.invoiceImageUrl || p.invoiceImageUrl;
-    p.purchasingNotes = params.purchasingNotes;
+    p.purchasingResultNotes = params.purchasingResultNotes;
     p.status = 'SUBMITTED';
 
     this.addAuditLog({
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: previousState === 'RETURNED' ? 'Cập nhật lại kết quả thu mua (sau khi trả lại)' : 'Ghi kết quả thu mua',
+      action: previousState === 'RETURNED' ? 'Cập nhật lại kết quả thu mua' : 'Ghi kết quả thu mua',
       entityType: 'PURCHASE_ASSIGNMENT',
       entityId: p.id,
       entityCode: p.code,
@@ -1345,7 +1360,7 @@ class DatabaseService {
     this.addNotification({
       recipientRole: 'M',
       title: 'Hồ sơ thu mua chờ duyệt',
-      message: `${p.code} (${p.supplierName}) đã ghi nhận cân thực tế ${params.weighedQuantityKg.toLocaleString('vi-VN')} kg`,
+      message: `${p.code} (${p.supplierName}) đã cân ${params.weighedQuantityKg.toLocaleString('vi-VN')} kg`,
       entityType: 'PURCHASE_ASSIGNMENT',
       entityId: p.id,
       targetView: 'purchasing',
@@ -1387,7 +1402,6 @@ class DatabaseService {
         entityCode: p.code,
         previousState: 'SUBMITTED',
         newState: 'APPROVED',
-        details: 'Phê duyệt chuyển bước tiếp nhận kho vật lý',
       });
 
       this.addNotification({
@@ -1444,11 +1458,11 @@ class DatabaseService {
     return { success: true };
   }
 
+  // WF-01.4 Warehouse Staff: Nhập kho HOẶC Từ chối (Sec 9)
   public receiveRawMaterialIntoWarehouse(params: {
     assignmentId: string;
     receivedQuantityKg: number;
     warehouseNotes?: string;
-    discrepancyReason?: string;
     user: User;
   }): { success: boolean; error?: string } {
     const p = this.data.purchases.find((x) => x.id === params.assignmentId);
@@ -1460,32 +1474,27 @@ class DatabaseService {
       return { success: false, error: 'Khối lượng thực nhận phải lớn hơn 0' };
     }
 
-    // Check significant discrepancy (> 5% difference compared to weighed quantity)
-    const weighed = p.weighedQuantityKg || p.plannedQuantityKg;
-    const diffPercent = Math.abs(params.receivedQuantityKg - weighed) / weighed;
-    if (diffPercent > 0.05 && (!params.discrepancyReason || !params.discrepancyReason.trim())) {
-      return {
-        success: false,
-        error: `Chênh lệch khối lượng ${((params.receivedQuantityKg - weighed) / 1000).toFixed(2)} tấn (> 5%). Bắt buộc nhập nguyên nhân chênh lệch.`,
-      };
-    }
-
-    // Atomic stock movement
     p.receivedQuantityKg = params.receivedQuantityKg;
     p.receivedAt = new Date().toISOString();
     p.receivedById = params.user.id;
     p.receivedByName = params.user.fullName;
     p.warehouseNotes = params.warehouseNotes;
-    p.discrepancyReason = params.discrepancyReason;
     p.status = 'RECEIVED';
 
     this.data.rawInventoryBalanceKg += params.receivedQuantityKg;
+
+    // Track total in supplier record
+    const sup = this.data.suppliers.find((s) => s.id === p.supplierId);
+    if (sup) {
+      sup.totalPurchasedKg = (sup.totalPurchasedKg || 0) + params.receivedQuantityKg;
+      sup.totalPaidVnd = (sup.totalPaidVnd || 0) + (p.totalAmountVnd || 0);
+    }
 
     const sm: StockMovement = {
       id: `sm-${Date.now()}`,
       timestamp: new Date().toISOString(),
       materialCategory: 'RAW_MATERIAL',
-      materialName: p.rawMaterialType,
+      materialName: 'Nguyên vật liệu',
       movementType: 'IN',
       quantityKg: params.receivedQuantityKg,
       referenceDocumentType: 'PURCHASE_RECEIPT',
@@ -1501,13 +1510,57 @@ class DatabaseService {
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: 'Xác nhận nhập kho NVL vật lý',
+      action: 'Nhập kho',
       entityType: 'PURCHASE_ASSIGNMENT',
       entityId: p.id,
       entityCode: p.code,
       previousState: 'APPROVED',
       newState: 'RECEIVED',
-      details: `Kế hoạch: ${p.plannedQuantityKg.toLocaleString('vi-VN')} kg | Cân mua: ${weighed.toLocaleString('vi-VN')} kg | Thực nhập kho: ${params.receivedQuantityKg.toLocaleString('vi-VN')} kg`,
+      details: `Thực nhận ${params.receivedQuantityKg.toLocaleString('vi-VN')} kg, tăng tồn kho NVL`,
+    });
+
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
+  public rejectRawMaterialReceipt(params: {
+    assignmentId: string;
+    reason: string;
+    user: User;
+  }): { success: boolean; error?: string } {
+    const p = this.data.purchases.find((x) => x.id === params.assignmentId);
+    if (!p) return { success: false, error: 'Không tìm thấy hồ sơ' };
+    if (!params.reason || !params.reason.trim()) {
+      return { success: false, error: 'Bắt buộc nhập lý do từ chối nhận hàng' };
+    }
+
+    p.status = 'REJECTED_BY_WAREHOUSE';
+    p.warehouseRejectionReason = params.reason.trim();
+    p.receivedById = params.user.id;
+    p.receivedByName = params.user.fullName;
+    p.receivedAt = new Date().toISOString();
+
+    this.addAuditLog({
+      actorId: params.user.id,
+      actorName: params.user.fullName,
+      actorRole: params.user.role,
+      action: 'Thủ kho từ chối nhận hàng',
+      entityType: 'PURCHASE_ASSIGNMENT',
+      entityId: p.id,
+      entityCode: p.code,
+      previousState: 'APPROVED',
+      newState: 'REJECTED_BY_WAREHOUSE',
+      reason: params.reason,
+      details: 'Không tăng tồn kho. Hồ sơ chuyển sang danh sách cần xử lý lại.',
+    });
+
+    this.addNotification({
+      recipientRole: 'M',
+      title: 'Thủ kho từ chối nhận lô hàng',
+      message: `${p.code} (${p.supplierName}) bị từ chối: "${params.reason}"`,
+      entityType: 'PURCHASE_ASSIGNMENT',
+      entityId: p.id,
+      targetView: 'purchasing',
     });
 
     this.persist({ ...this.data });
@@ -1515,17 +1568,16 @@ class DatabaseService {
   }
 
   // ==========================================
-  // WF-02 PRODUCTION PLANNING
+  // WF-02 PRODUCTION PLANNING (Multi-staff per machine!)
   // ==========================================
   public createProductionPlan(params: {
     productionDate: string;
     shift: 'CA_1' | 'CA_2' | 'CA_3';
-    productName: string;
     targetQuantityKg: number;
     assignments: {
       stage: any;
       machineId: string;
-      operatorId: string;
+      operatorIds: string[];
       targetQuantityKg: number;
       notes?: string;
     }[];
@@ -1535,9 +1587,6 @@ class DatabaseService {
     if (params.targetQuantityKg <= 0) {
       return { success: false, error: 'Sản lượng mục tiêu phải lớn hơn 0' };
     }
-    if (!params.assignments || params.assignments.length === 0) {
-      return { success: false, error: 'Phải cấu hình ít nhất một công đoạn sản xuất' };
-    }
 
     const nextNum = this.data.productionPlans.length + 42;
     const code = `PLAN-2026-${String(nextNum).padStart(3, '0')}`;
@@ -1545,14 +1594,16 @@ class DatabaseService {
 
     const formattedAssignments = params.assignments.map((a, idx) => {
       const machine = this.data.machines.find((m) => m.id === a.machineId);
-      const operator = this.data.users.find((u) => u.id === a.operatorId);
+      const opNames = a.operatorIds.map(
+        (opId) => this.data.users.find((u) => u.id === opId)?.fullName || 'Công nhân'
+      );
       return {
         id: `tsk-${id}-${idx}`,
         stage: a.stage,
         machineId: a.machineId,
         machineName: machine ? machine.name : 'Máy sản xuất',
-        operatorId: a.operatorId,
-        operatorName: operator ? operator.fullName : 'Công nhân',
+        operatorIds: a.operatorIds,
+        operatorNames: opNames,
         targetQuantityKg: a.targetQuantityKg,
         notes: a.notes,
       };
@@ -1563,7 +1614,7 @@ class DatabaseService {
       code,
       productionDate: params.productionDate,
       shift: params.shift,
-      productName: params.productName,
+      productName: 'Viên nén gỗ', // Fixed single product
       targetQuantityKg: params.targetQuantityKg,
       status: 'PLANNED',
       createdById: params.creator.id,
@@ -1587,14 +1638,15 @@ class DatabaseService {
       details: `${code}: Ngày ${params.productionDate}, Ca ${params.shift}, Mục tiêu ${params.targetQuantityKg.toLocaleString('vi-VN')} kg`,
     });
 
-    // Notify operators
-    const operatorIds = new Set(formattedAssignments.map((a) => a.operatorId));
-    operatorIds.forEach((opId) => {
+    // Notify all assigned operators
+    const allOpIds = new Set<string>();
+    formattedAssignments.forEach((a) => a.operatorIds.forEach((id) => allOpIds.add(id)));
+    allOpIds.forEach((opId) => {
       this.addNotification({
         recipientUserId: opId,
         recipientRole: 'S',
         title: 'Phân công kế hoạch sản xuất mới',
-        message: `Bạn được phân công trong ${code} (${params.productName})`,
+        message: `Bạn được phân công trong ${code}`,
         entityType: 'PRODUCTION_PLAN',
         entityId: id,
         targetView: 'shift-report',
@@ -1610,7 +1662,6 @@ class DatabaseService {
   // ==========================================
   public issueRawMaterial(params: {
     planId: string;
-    rawMaterialType: string;
     issuedQuantityKg: number;
     recipientDepartment: string;
     notes?: string;
@@ -1625,7 +1676,7 @@ class DatabaseService {
     if (params.issuedQuantityKg > this.data.rawInventoryBalanceKg) {
       return {
         success: false,
-        error: `Không đủ tồn kho khả dụng. Tồn hiện tại: ${this.data.rawInventoryBalanceKg.toLocaleString('vi-VN')} kg, Yêu cầu cấp: ${params.issuedQuantityKg.toLocaleString('vi-VN')} kg`,
+        error: `Không đủ tồn kho khả dụng. Tồn hiện tại: ${this.data.rawInventoryBalanceKg.toLocaleString('vi-VN')} kg`,
       };
     }
 
@@ -1638,7 +1689,7 @@ class DatabaseService {
       code,
       planId: plan.id,
       planCode: plan.code,
-      rawMaterialType: params.rawMaterialType,
+      rawMaterialType: 'Nguyên vật liệu',
       issuedQuantityKg: params.issuedQuantityKg,
       recipientDepartment: params.recipientDepartment,
       issuedAt: new Date().toISOString(),
@@ -1654,7 +1705,7 @@ class DatabaseService {
       id: `sm-${Date.now()}`,
       timestamp: new Date().toISOString(),
       materialCategory: 'RAW_MATERIAL',
-      materialName: params.rawMaterialType,
+      materialName: 'Nguyên vật liệu',
       movementType: 'OUT',
       quantityKg: params.issuedQuantityKg,
       referenceDocumentType: 'RAW_MATERIAL_ISSUE',
@@ -1662,7 +1713,7 @@ class DatabaseService {
       confirmedById: params.user.id,
       confirmedByName: params.user.fullName,
       balanceAfterKg: this.data.rawInventoryBalanceKg,
-      notes: `Cấp NVL cho kế hoạch ${plan.code} (${params.recipientDepartment})`,
+      notes: `Cấp NVL cho kế hoạch ${plan.code}`,
     };
     this.data.stockMovements.unshift(sm);
 
@@ -1670,11 +1721,11 @@ class DatabaseService {
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: 'Xác nhận cấp phát NVL',
+      action: 'Cấp NVL',
       entityType: 'RAW_MATERIAL_ISSUE',
       entityId: id,
       entityCode: code,
-      details: `Xuất kho ${params.issuedQuantityKg.toLocaleString('vi-VN')} kg ${params.rawMaterialType} cho ${plan.code}`,
+      details: `Xuất kho ${params.issuedQuantityKg.toLocaleString('vi-VN')} kg cho ${plan.code}`,
     });
 
     this.persist({ ...this.data });
@@ -1703,11 +1754,8 @@ class DatabaseService {
     const machine = this.data.machines.find((m) => m.id === params.machineId);
     if (!machine) return { success: false, error: 'Máy móc không hợp lệ' };
 
-    if (params.actualOutputKg <= 0) {
-      return { success: false, error: 'Sản lượng thực tế phải lớn hơn 0 kg' };
-    }
-    if (params.actualMaterialUsedKg <= 0) {
-      return { success: false, error: 'NVL thực dùng phải lớn hơn 0 kg' };
+    if (params.actualOutputKg <= 0 || params.actualMaterialUsedKg <= 0) {
+      return { success: false, error: 'Sản lượng và lượng NVL thực dùng phải lớn hơn 0' };
     }
 
     const nextNum = this.data.shiftReports.length + 88;
@@ -1742,18 +1790,18 @@ class DatabaseService {
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: 'Gửi báo cáo ca sản xuất',
+      action: 'Gửi báo cáo ca',
       entityType: 'SHIFT_REPORT',
       entityId: id,
       entityCode: code,
       newState: 'SUBMITTED',
-      details: `${code}: NVL dùng ${params.actualMaterialUsedKg.toLocaleString('vi-VN')} kg, Sản lượng ${params.actualOutputKg.toLocaleString('vi-VN')} kg`,
+      details: `${code}: Sản lượng ${params.actualOutputKg.toLocaleString('vi-VN')} kg`,
     });
 
     this.addNotification({
       recipientRole: 'M',
       title: 'Báo cáo ca chờ duyệt',
-      message: `${params.user.fullName} đã gửi ${code} (${params.actualOutputKg.toLocaleString('vi-VN')} kg viên nén)`,
+      message: `${params.user.fullName} đã gửi ${code} (${params.actualOutputKg.toLocaleString('vi-VN')} kg)`,
       entityType: 'SHIFT_REPORT',
       entityId: id,
       targetView: 'shift-report',
@@ -1786,7 +1834,7 @@ class DatabaseService {
     if (params.decision === 'APPROVE') {
       report.status = 'APPROVED';
 
-      // Automatically generate a new LOT in PENDING QC status
+      // Generate a new LOT in PENDING QC status (Not in warehouse yet!)
       const lotNumber = this.data.lots.length + 1;
       const datePart = report.productionDate.replace(/-/g, '');
       const lotCode = `LOT-${datePart}-${String(lotNumber).padStart(2, '0')}`;
@@ -1800,12 +1848,11 @@ class DatabaseService {
         planCode: report.planCode,
         shiftReportId: report.id,
         productionDate: report.productionDate,
-        productName: 'Viên nén gỗ Tràm xuất khẩu ENplus-A1',
+        productName: 'Viên nén gỗ',
         quantityKg: report.actualOutputKg,
         jumboBagsCount: Math.ceil(report.actualOutputKg / 1000),
         qcStatus: 'PENDING',
         tests: [],
-        reDryCount: 0,
         isReceivedInWarehouse: false,
         availableQuantityKg: report.actualOutputKg,
         createdAt: new Date().toISOString(),
@@ -1816,13 +1863,13 @@ class DatabaseService {
         actorId: params.user.id,
         actorName: params.user.fullName,
         actorRole: params.user.role,
-        action: 'Phê duyệt báo cáo ca sản xuất',
+        action: 'Phê duyệt',
         entityType: 'SHIFT_REPORT',
         entityId: report.id,
         entityCode: report.code,
         previousState: 'SUBMITTED',
         newState: 'APPROVED',
-        details: `Duyệt báo cáo ${report.code}. Đã tạo lô hàng ${lotCode} chờ 3 lần kiểm tra QC`,
+        details: `Duyệt báo cáo ${report.code}. Đã tạo lô hàng ${lotCode} chờ kiểm tra QC`,
       });
 
       this.addNotification({
@@ -1840,7 +1887,7 @@ class DatabaseService {
         actorId: params.user.id,
         actorName: params.user.fullName,
         actorRole: params.user.role,
-        action: 'Trả lại báo cáo ca',
+        action: 'Trả lại',
         entityType: 'SHIFT_REPORT',
         entityId: report.id,
         entityCode: report.code,
@@ -1865,7 +1912,7 @@ class DatabaseService {
         actorId: params.user.id,
         actorName: params.user.fullName,
         actorRole: params.user.role,
-        action: 'Từ chối báo cáo ca',
+        action: 'Từ chối',
         entityType: 'SHIFT_REPORT',
         entityId: report.id,
         entityCode: report.code,
@@ -1880,7 +1927,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // WF-05 QUALITY CONTROL (3 INDEPENDENT TESTS)
+  // WF-05 QUALITY CONTROL (3 tests & Kho A / Kho B classification)
   // ==========================================
   public addQcTest(params: {
     lotId: string;
@@ -1896,7 +1943,7 @@ class DatabaseService {
     if (!lot) return { success: false, error: 'Không tìm thấy LOT' };
 
     if (lot.tests.length >= 3) {
-      return { success: false, error: 'LOT này đã hoàn thành đủ 3 lần kiểm tra QC độc lập' };
+      return { success: false, error: 'LOT này đã hoàn thành đủ 3 lần kiểm tra QC' };
     }
 
     const testNum = (lot.tests.length + 1) as 1 | 2 | 3;
@@ -1916,36 +1963,20 @@ class DatabaseService {
     lot.tests.push(newTest);
 
     if (lot.tests.length === 3) {
-      // 3 independent tests completed! Calculate overall grade
-      const avgMoisture = lot.tests.reduce((acc, t) => acc + t.moisturePercent, 0) / 3;
+      lot.qcStatus = 'QC_COMPLETED';
+      // Automatically suggest target warehouse based on average ash and moisture:
+      // Ash <= 0.8% and Moisture <= 10% -> Kho A, otherwise Kho B (all sellable)
       const avgAsh = lot.tests.reduce((acc, t) => acc + t.ashPercent, 0) / 3;
+      lot.targetWarehouse = avgAsh <= 0.8 ? 'KHO_A' : 'KHO_B';
 
-      if (avgMoisture > 12.0) {
-        lot.qcStatus = 'RE_DRY_REQUIRED';
-        lot.reDryCount += 1;
-        this.addNotification({
-          recipientRole: 'M',
-          title: 'LOT cần sấy lại (Độ ẩm cao)',
-          message: `${lot.lotCode} có độ ẩm trung bình ${avgMoisture.toFixed(1)}% vượt ngưỡng cho phép (> 12%)`,
-          entityType: 'LOT',
-          entityId: lot.id,
-          targetView: 'qc',
-        });
-      } else {
-        lot.qcStatus = 'QC_PASSED';
-        // Grade A: Ash < 0.8% and Moisture <= 10%
-        // Grade B: Ash < 1.5% and Moisture <= 10%
-        lot.grade = avgAsh <= 0.8 ? 'GRADE_A' : 'GRADE_B';
-
-        this.addNotification({
-          recipientRole: 'WS',
-          title: 'LOT đạt chuẩn KCS chờ nhập kho thành phẩm',
-          message: `${lot.lotCode} (${lot.quantityKg.toLocaleString('vi-VN')} kg - ${lot.grade}) đã qua 3 lần QC`,
-          entityType: 'LOT',
-          entityId: lot.id,
-          targetView: 'finished-goods',
-        });
-      }
+      this.addNotification({
+        recipientRole: 'WS',
+        title: 'Lô hàng đã hoàn tất QC chờ nhập kho',
+        message: `${lot.lotCode} (${lot.quantityKg.toLocaleString('vi-VN')} kg) đã xếp vào ${lot.targetWarehouse}`,
+        entityType: 'LOT',
+        entityId: lot.id,
+        targetView: 'finished-goods',
+      });
     } else {
       lot.qcStatus = 'IN_TESTING';
     }
@@ -1958,38 +1989,61 @@ class DatabaseService {
       entityType: 'LOT',
       entityId: lot.id,
       entityCode: lot.lotCode,
-      details: `Lần ${testNum}/3: Độ ẩm ${params.moisturePercent}%, Độ tro ${params.ashPercent}%, Tạp chất ${params.impuritiesPercent}%`,
+      details: `Lần ${testNum}/3: Độ ẩm ${params.moisturePercent}%, Độ tro ${params.ashPercent}%`,
     });
 
     this.persist({ ...this.data });
     return { success: true };
   }
 
+  public setLotWarehouseClassification(lotId: string, warehouseType: FinishedWarehouseType, user: User) {
+    const lot = this.data.lots.find((l) => l.id === lotId);
+    if (!lot) return;
+    lot.targetWarehouse = warehouseType;
+    this.addAuditLog({
+      actorId: user.id,
+      actorName: user.fullName,
+      actorRole: user.role,
+      action: 'Chỉ định phân loại kho thành phẩm',
+      entityType: 'LOT',
+      entityId: lot.id,
+      entityCode: lot.lotCode,
+      details: `Chỉ định lưu trữ vào ${warehouseType}`,
+    });
+    this.persist({ ...this.data });
+  }
+
   // ==========================================
-  // WF-06 FINISHED GOODS INVENTORY RECEIPT
+  // WF-06 FINISHED GOODS INVENTORY RECEIPT (Kho A / Kho B)
   // ==========================================
   public receiveFinishedGoods(params: { lotId: string; user: User }): { success: boolean; error?: string } {
     const lot = this.data.lots.find((l) => l.id === params.lotId);
     if (!lot) return { success: false, error: 'Không tìm thấy LOT' };
-    if (lot.qcStatus !== 'QC_PASSED') {
-      return { success: false, error: 'Chỉ nhận vào kho thành phẩm các LOT đã đạt 3 lần QC (QC_PASSED)' };
+    if (lot.qcStatus !== 'QC_COMPLETED') {
+      return { success: false, error: 'Chỉ nhận vào kho các LOT đã qua đủ 3 lần QC (QC_COMPLETED)' };
     }
     if (lot.isReceivedInWarehouse) {
-      return { success: false, error: 'LOT này đã được nhận vào kho thành phẩm trước đó' };
+      return { success: false, error: 'LOT này đã được nhận vào kho trước đó' };
     }
 
+    const warehouse = lot.targetWarehouse || 'KHO_A';
     lot.isReceivedInWarehouse = true;
     lot.receivedAt = new Date().toISOString();
     lot.receivedById = params.user.id;
     lot.receivedByName = params.user.fullName;
 
-    this.data.finishedInventoryBalanceKg += lot.quantityKg;
+    if (warehouse === 'KHO_A') {
+      this.data.finishedInventoryWarehouseA_Kg += lot.quantityKg;
+    } else {
+      this.data.finishedInventoryWarehouseB_Kg += lot.quantityKg;
+    }
 
     const sm: StockMovement = {
       id: `sm-${Date.now()}`,
       timestamp: new Date().toISOString(),
       materialCategory: 'FINISHED_GOODS',
-      materialName: lot.productName,
+      materialName: 'Viên nén gỗ',
+      warehouseType: warehouse,
       movementType: 'IN',
       quantityKg: lot.quantityKg,
       referenceDocumentType: 'FINISHED_GOODS_RECEIPT',
@@ -1997,8 +2051,11 @@ class DatabaseService {
       lotCode: lot.lotCode,
       confirmedById: params.user.id,
       confirmedByName: params.user.fullName,
-      balanceAfterKg: this.data.finishedInventoryBalanceKg,
-      notes: `Thủ kho nhận nhập ${lot.jumboBagsCount} bao Jumbo (${lot.grade}) vào kho thành phẩm`,
+      balanceAfterKg:
+        warehouse === 'KHO_A'
+          ? this.data.finishedInventoryWarehouseA_Kg
+          : this.data.finishedInventoryWarehouseB_Kg,
+      notes: `Nhập ${lot.jumboBagsCount} bao Jumbo vào ${warehouse}`,
     };
     this.data.stockMovements.unshift(sm);
 
@@ -2006,11 +2063,11 @@ class DatabaseService {
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: 'Xác nhận nhập kho thành phẩm vật lý',
+      action: 'Nhập kho',
       entityType: 'LOT',
       entityId: lot.id,
       entityCode: lot.lotCode,
-      details: `Nhập kho ${lot.quantityKg.toLocaleString('vi-VN')} kg (${lot.grade}), tăng tồn kho thành phẩm`,
+      details: `Nhập kho ${lot.quantityKg.toLocaleString('vi-VN')} kg vào ${warehouse}`,
     });
 
     this.persist({ ...this.data });
@@ -2018,15 +2075,13 @@ class DatabaseService {
   }
 
   // ==========================================
-  // WF-07 OUTBOUND PROPOSAL (FLOW A & FLOW B)
+  // WF-07 OUTBOUND PROPOSAL (WS and M both send directly to Owner! Only Owner decides price)
   // ==========================================
   public createOutboundProposal(params: {
-    flow: 'FLOW_A' | 'FLOW_B';
+    sourceWarehouse: FinishedWarehouseType;
     customerId: string;
-    productName: string;
     lotId: string;
     requestedQuantityKg: number;
-    unitPriceVnd?: number;
     notes?: string;
     user: User;
   }): { success: boolean; error?: string } {
@@ -2036,7 +2091,7 @@ class DatabaseService {
     if (!lot) return { success: false, error: 'Không tìm thấy LOT' };
 
     if (!lot.isReceivedInWarehouse) {
-      return { success: false, error: 'Chỉ được tạo đề xuất xuất hàng từ LOT đã nhập kho thành phẩm' };
+      return { success: false, error: 'Chỉ được tạo đề xuất từ LOT đã nhập kho thành phẩm' };
     }
     if (params.requestedQuantityKg <= 0) {
       return { success: false, error: 'Khối lượng yêu cầu xuất phải lớn hơn 0' };
@@ -2044,7 +2099,7 @@ class DatabaseService {
     if (params.requestedQuantityKg > lot.availableQuantityKg) {
       return {
         success: false,
-        error: `Khối lượng vượt tồn khả dụng của lô ${lot.lotCode}. Khả dụng: ${lot.availableQuantityKg.toLocaleString('vi-VN')} kg`,
+        error: `Khối lượng vượt tồn khả dụng của lô ${lot.lotCode} (${lot.availableQuantityKg.toLocaleString('vi-VN')} kg)`,
       };
     }
 
@@ -2052,28 +2107,31 @@ class DatabaseService {
     const code = `OUT-PROP-2026-${String(nextNum).padStart(3, '0')}`;
     const id = `out-${Date.now()}`;
 
-    // In Flow A: starts at PENDING_MANAGER_REVIEW
-    // In Flow B: starts at PENDING_OWNER_APPROVAL
-    const initialStatus = params.flow === 'FLOW_A' ? 'PENDING_MANAGER_REVIEW' : 'PENDING_OWNER_APPROVAL';
+    // Both WS and M create proposals that go DIRECTLY to Owner!
+    // If Owner is the creator, the proposal is registered directly without self-approval loop.
+    const isOwnerCreator = params.user.role === 'O';
+    const initialStatus = isOwnerCreator ? 'APPROVED' : 'PENDING_OWNER_APPROVAL';
 
     const proposal: OutboundProposal = {
       id,
       code,
-      flow: params.flow,
+      creatorRole: params.user.role as any,
+      sourceWarehouse: params.sourceWarehouse,
       customerId: customer.id,
       customerName: customer.name,
-      productName: params.productName,
+      productName: 'Viên nén gỗ',
       lotId: lot.id,
       lotCode: lot.lotCode,
-      grade: lot.grade || 'GRADE_A',
       requestedQuantityKg: params.requestedQuantityKg,
-      unitPriceVnd: params.unitPriceVnd,
-      totalValueVnd: params.unitPriceVnd ? params.unitPriceVnd * params.requestedQuantityKg : undefined,
+      // No price input for WS/M! Only Owner sets price!
       status: initialStatus,
       notes: params.notes,
       createdById: params.user.id,
       createdByName: params.user.fullName,
       createdAt: new Date().toISOString(),
+      ownerDecidedById: isOwnerCreator ? params.user.id : undefined,
+      ownerDecidedByName: isOwnerCreator ? params.user.fullName : undefined,
+      ownerDecidedAt: isOwnerCreator ? new Date().toISOString() : undefined,
       outboundQcTested: false,
       isDispatched: false,
     };
@@ -2089,19 +2147,10 @@ class DatabaseService {
       entityId: id,
       entityCode: code,
       newState: initialStatus,
-      details: `${code} (${params.flow}): Xuất ${params.requestedQuantityKg.toLocaleString('vi-VN')} kg từ ${lot.lotCode} cho ${customer.name}`,
+      details: `${code}: Đề xuất xuất ${params.requestedQuantityKg.toLocaleString('vi-VN')} kg từ ${params.sourceWarehouse} cho ${customer.name}`,
     });
 
-    if (params.flow === 'FLOW_A') {
-      this.addNotification({
-        recipientRole: 'M',
-        title: 'Đề xuất xuất hàng chờ quản lý xem xét',
-        message: `${params.user.fullName} đã tạo ${code} (${customer.name})`,
-        entityType: 'OUTBOUND_PROPOSAL',
-        entityId: id,
-        targetView: 'outbound',
-      });
-    } else {
+    if (!isOwnerCreator) {
       this.addNotification({
         recipientRole: 'O',
         title: 'Đề xuất xuất hàng chờ Owner quyết định',
@@ -2116,74 +2165,13 @@ class DatabaseService {
     return { success: true };
   }
 
-  public managerReviewOutboundProposal(params: {
-    proposalId: string;
-    action: 'FORWARD_TO_OWNER' | 'RETURN';
-    returnReason?: string;
-    user: User;
-  }): { success: boolean; error?: string } {
-    const prop = this.data.outboundProposals.find((p) => p.id === params.proposalId);
-    if (!prop) return { success: false, error: 'Không tìm thấy đề xuất' };
-    if (prop.status !== 'PENDING_MANAGER_REVIEW') {
-      return { success: false, error: 'Đề xuất không ở trạng thái chờ Manager xem xét' };
-    }
-
-    prop.managerReviewedById = params.user.id;
-    prop.managerReviewedByName = params.user.fullName;
-    prop.managerReviewedAt = new Date().toISOString();
-
-    if (params.action === 'FORWARD_TO_OWNER') {
-      prop.status = 'PENDING_OWNER_APPROVAL';
-      this.addAuditLog({
-        actorId: params.user.id,
-        actorName: params.user.fullName,
-        actorRole: params.user.role,
-        action: 'Quản lý xem xét và chuyển Owner quyết định',
-        entityType: 'OUTBOUND_PROPOSAL',
-        entityId: prop.id,
-        entityCode: prop.code,
-        previousState: 'PENDING_MANAGER_REVIEW',
-        newState: 'PENDING_OWNER_APPROVAL',
-      });
-
-      this.addNotification({
-        recipientRole: 'O',
-        title: 'Đề xuất xuất hàng trình duyệt',
-        message: `${prop.code} đã được Manager kiểm tra và chuyển cho Owner duyệt`,
-        entityType: 'OUTBOUND_PROPOSAL',
-        entityId: prop.id,
-        targetView: 'outbound',
-      });
-    } else {
-      if (!params.returnReason || !params.returnReason.trim()) {
-        return { success: false, error: 'Bắt buộc nhập lý do trả lại' };
-      }
-      prop.status = 'RETURNED';
-      prop.returnReason = params.returnReason;
-      this.addAuditLog({
-        actorId: params.user.id,
-        actorName: params.user.fullName,
-        actorRole: params.user.role,
-        action: 'Quản lý trả lại đề xuất',
-        entityType: 'OUTBOUND_PROPOSAL',
-        entityId: prop.id,
-        entityCode: prop.code,
-        previousState: 'PENDING_MANAGER_REVIEW',
-        newState: 'RETURNED',
-        reason: params.returnReason,
-      });
-    }
-
-    this.persist({ ...this.data });
-    return { success: true };
-  }
-
+  // Owner exclusive decision: sets price, can override customer, approves/returns/rejects
   public ownerDecideOutboundProposal(params: {
     proposalId: string;
     decision: 'APPROVE' | 'RETURN' | 'REJECT';
     reason?: string;
     newCustomerId?: string;
-    adjustedPriceVnd?: number;
+    decidedPriceVnd?: number;
     user: User;
   }): { success: boolean; error?: string } {
     const prop = this.data.outboundProposals.find((p) => p.id === params.proposalId);
@@ -2192,7 +2180,11 @@ class DatabaseService {
       return { success: false, error: 'Đề xuất không ở trạng thái chờ Owner quyết định' };
     }
 
-    // Owner exclusive: Change customer while preserving original in history
+    if (params.decision === 'APPROVE' && (!params.decidedPriceVnd || params.decidedPriceVnd <= 0)) {
+      return { success: false, error: 'Chỉ Owner có quyền quyết định giá bán. Vui lòng nhập đơn giá bán chốt.' };
+    }
+
+    // Owner override customer
     if (params.newCustomerId && params.newCustomerId !== prop.customerId) {
       const newCust = this.data.customers.find((c) => c.id === params.newCustomerId);
       if (newCust) {
@@ -2213,12 +2205,10 @@ class DatabaseService {
       }
     }
 
-    // Owner sets or adjusts selling price
-    if (params.adjustedPriceVnd && params.adjustedPriceVnd > 0) {
-      prop.unitPriceVnd = params.adjustedPriceVnd;
-      prop.totalValueVnd = params.adjustedPriceVnd * prop.requestedQuantityKg;
+    if (params.decidedPriceVnd) {
+      prop.unitPriceVnd = params.decidedPriceVnd;
+      prop.totalValueVnd = params.decidedPriceVnd * prop.requestedQuantityKg;
     }
-
     prop.ownerDecidedById = params.user.id;
     prop.ownerDecidedByName = params.user.fullName;
     prop.ownerDecidedAt = new Date().toISOString();
@@ -2229,34 +2219,32 @@ class DatabaseService {
         actorId: params.user.id,
         actorName: params.user.fullName,
         actorRole: params.user.role,
-        action: 'Owner phê duyệt xuất hàng cuối cùng',
+        action: 'Phê duyệt',
         entityType: 'OUTBOUND_PROPOSAL',
         entityId: prop.id,
         entityCode: prop.code,
         previousState: 'PENDING_OWNER_APPROVAL',
         newState: 'APPROVED',
-        details: `Duyệt xuất ${prop.requestedQuantityKg.toLocaleString('vi-VN')} kg cho ${prop.customerName}`,
+        details: `Duyệt giá ${(params.decidedPriceVnd || 0).toLocaleString('vi-VN')} VND/kg cho ${prop.customerName}`,
       });
 
       this.addNotification({
         recipientRole: 'M',
-        title: 'Đề xuất xuất hàng đã được Owner duyệt',
-        message: `${prop.code} đã được duyệt. Vui lòng ghi nhận thông tin xe nhận hàng`,
+        title: 'Đề xuất xuất hàng đã duyệt',
+        message: `${prop.code} đã được duyệt giá ${(params.decidedPriceVnd || 0).toLocaleString('vi-VN')} VND/kg`,
         entityType: 'OUTBOUND_PROPOSAL',
         entityId: prop.id,
         targetView: 'outbound',
       });
     } else if (params.decision === 'RETURN') {
-      if (!params.reason || !params.reason.trim()) {
-        return { success: false, error: 'Bắt buộc nhập lý do khi Trả lại đề xuất' };
-      }
+      if (!params.reason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do khi Trả lại' };
       prop.status = 'RETURNED';
       prop.returnReason = params.reason;
       this.addAuditLog({
         actorId: params.user.id,
         actorName: params.user.fullName,
         actorRole: params.user.role,
-        action: 'Owner trả lại đề xuất',
+        action: 'Trả lại',
         entityType: 'OUTBOUND_PROPOSAL',
         entityId: prop.id,
         entityCode: prop.code,
@@ -2265,16 +2253,14 @@ class DatabaseService {
         reason: params.reason,
       });
     } else {
-      if (!params.reason || !params.reason.trim()) {
-        return { success: false, error: 'Bắt buộc nhập lý do khi Từ chối đề xuất' };
-      }
+      if (!params.reason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do khi Từ chối' };
       prop.status = 'REJECTED';
       prop.rejectionReason = params.reason;
       this.addAuditLog({
         actorId: params.user.id,
         actorName: params.user.fullName,
         actorRole: params.user.role,
-        action: 'Owner từ chối đề xuất',
+        action: 'Từ chối',
         entityType: 'OUTBOUND_PROPOSAL',
         entityId: prop.id,
         entityCode: prop.code,
@@ -2288,9 +2274,7 @@ class DatabaseService {
     return { success: true };
   }
 
-  // ==========================================
-  // WF-08 OUTBOUND QC
-  // ==========================================
+  // WF-08 Outbound QC
   public recordOutboundQc(params: {
     proposalId: string;
     moisturePercent: number;
@@ -2300,7 +2284,6 @@ class DatabaseService {
   }): { success: boolean; error?: string } {
     const prop = this.data.outboundProposals.find((p) => p.id === params.proposalId);
     if (!prop) return { success: false, error: 'Không tìm thấy đề xuất' };
-    const lot = this.data.lots.find((l) => l.id === prop.lotId);
 
     prop.outboundQcTested = true;
     prop.outboundQcMoisture = params.moisturePercent;
@@ -2310,72 +2293,22 @@ class DatabaseService {
     prop.outboundQcTestedByName = params.user.fullName;
     prop.outboundQcTestedAt = new Date().toISOString();
 
-    // Check mismatch with LOT shift QC (if moisture shifted > 1.5% or ash shifted > 0.3%)
-    if (lot && lot.tests.length > 0) {
-      const avgLotMoisture = lot.tests.reduce((acc, t) => acc + t.moisturePercent, 0) / lot.tests.length;
-      if (Math.abs(params.moisturePercent - avgLotMoisture) > 1.5) {
-        prop.outboundQcMismatchDetected = true;
-        this.addNotification({
-          recipientRole: 'O',
-          title: 'Cảnh báo sai khác QC xuất hàng',
-          message: `${prop.code}: Độ ẩm xuất hàng (${params.moisturePercent}%) lệch so với QC ca (${avgLotMoisture.toFixed(1)}%). Chờ Owner quyết định`,
-          entityType: 'OUTBOUND_PROPOSAL',
-          entityId: prop.id,
-          targetView: 'outbound',
-        });
-      }
-    }
-
     this.addAuditLog({
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: 'Ghi nhận QC kiểm tra xuất hàng',
+      action: 'Kiểm tra QC xuất hàng',
       entityType: 'OUTBOUND_PROPOSAL',
       entityId: prop.id,
       entityCode: prop.code,
-      details: `Độ ẩm: ${params.moisturePercent}%, Độ tro: ${params.ashPercent}%, Tạp chất: ${params.impuritiesPercent}%`,
+      details: `Độ ẩm: ${params.moisturePercent}%, Độ tro: ${params.ashPercent}%`,
     });
 
     this.persist({ ...this.data });
     return { success: true };
   }
 
-  public ownerDecideOutboundQcMismatch(params: {
-    proposalId: string;
-    decision: 'APPROVED_DISPATCH' | 'REQUIRE_RETEST' | 'REJECTED_DISPATCH';
-    notes?: string;
-    user: User;
-  }): { success: boolean; error?: string } {
-    const prop = this.data.outboundProposals.find((p) => p.id === params.proposalId);
-    if (!prop) return { success: false, error: 'Không tìm thấy đề xuất' };
-
-    prop.ownerMismatchDecision = params.decision;
-    prop.ownerMismatchDecisionNotes = params.notes;
-
-    if (params.decision === 'REJECTED_DISPATCH') {
-      prop.status = 'REJECTED';
-      prop.rejectionReason = `Owner từ chối xuất hàng do sai lệch chất lượng QC: ${params.notes || ''}`;
-    }
-
-    this.addAuditLog({
-      actorId: params.user.id,
-      actorName: params.user.fullName,
-      actorRole: params.user.role,
-      action: 'Owner xử lý sai khác QC xuất hàng',
-      entityType: 'OUTBOUND_PROPOSAL',
-      entityId: prop.id,
-      entityCode: prop.code,
-      details: `Quyết định: ${params.decision}. Ghi chú: ${params.notes || 'Không'}`,
-    });
-
-    this.persist({ ...this.data });
-    return { success: true };
-  }
-
-  // ==========================================
-  // WF-09 PICKUP & DISPATCH (FIFO)
-  // ==========================================
+  // WF-09 Pickup & Dispatch (Warehouse Staff: Xuất kho HOẶC Từ chối)
   public recordRecipientInfo(params: {
     proposalId: string;
     recipientName: string;
@@ -2387,7 +2320,7 @@ class DatabaseService {
     const prop = this.data.outboundProposals.find((p) => p.id === params.proposalId);
     if (!prop) return { success: false, error: 'Không tìm thấy đề xuất' };
     if (prop.status !== 'APPROVED') {
-      return { success: false, error: 'Chỉ ghi nhận thông tin nhận hàng cho đề xuất đã được Owner phê duyệt' };
+      return { success: false, error: 'Chỉ ghi nhận thông tin xe cho đề xuất đã được phê duyệt' };
     }
 
     prop.recipientName = params.recipientName;
@@ -2397,17 +2330,6 @@ class DatabaseService {
     prop.recipientRecordedById = params.user.id;
     prop.recipientRecordedByName = params.user.fullName;
     prop.recipientRecordedAt = new Date().toISOString();
-
-    this.addAuditLog({
-      actorId: params.user.id,
-      actorName: params.user.fullName,
-      actorRole: params.user.role,
-      action: 'Ghi nhận thông tin người nhận hàng và xe vận chuyển',
-      entityType: 'OUTBOUND_PROPOSAL',
-      entityId: prop.id,
-      entityCode: prop.code,
-      details: `Tài xế: ${params.recipientName} (${params.recipientPhone}), Biển số xe: ${params.truckLicensePlate}`,
-    });
 
     this.addNotification({
       recipientRole: 'WS',
@@ -2425,8 +2347,8 @@ class DatabaseService {
   public confirmPhysicalDispatch(params: {
     proposalId: string;
     actualDispatchedKg: number;
-    dispatchEvidenceImageUrl?: string;
     truckPlateVerified: string;
+    dispatchEvidenceImageUrl?: string;
     user: User;
   }): { success: boolean; error?: string } {
     const prop = this.data.outboundProposals.find((p) => p.id === params.proposalId);
@@ -2434,47 +2356,20 @@ class DatabaseService {
     if (prop.status !== 'APPROVED') {
       return { success: false, error: 'Chỉ xuất kho cho đề xuất đã được phê duyệt' };
     }
-    if (prop.isDispatched) {
-      return { success: false, error: 'Đề xuất này đã được xuất kho trước đó' };
-    }
-
-    // Check recipient credential match
-    if (
-      prop.truckLicensePlate &&
-      params.truckPlateVerified.trim().toUpperCase() !== prop.truckLicensePlate.trim().toUpperCase()
-    ) {
-      prop.dispatchMismatchFlag = true;
-      this.addNotification({
-        recipientRole: 'M',
-        title: 'Cảnh báo sai lệch biển số xe nhận hàng',
-        message: `${prop.code}: Xe thực tế đến (${params.truckPlateVerified}) không khớp biển số đăng ký (${prop.truckLicensePlate})`,
-        entityType: 'OUTBOUND_PROPOSAL',
-        entityId: prop.id,
-        targetView: 'outbound',
-      });
-      this.persist({ ...this.data });
-      return {
-        success: false,
-        error: `Biển số xe thực tế (${params.truckPlateVerified}) không khớp với hồ sơ đăng ký (${prop.truckLicensePlate}). Không được phép xuất kho. Đã chuyển cảnh báo cho Quản lý.`,
-      };
-    }
 
     const lot = this.data.lots.find((l) => l.id === prop.lotId);
     if (!lot) return { success: false, error: 'Không tìm thấy LOT xuất kho' };
-
-    if (params.actualDispatchedKg <= 0) {
-      return { success: false, error: 'Khối lượng thực xuất phải lớn hơn 0' };
-    }
-    if (params.actualDispatchedKg > lot.availableQuantityKg) {
-      return {
-        success: false,
-        error: `Khối lượng thực xuất vượt quá tồn khả dụng của lô ${lot.lotCode}. Khả dụng: ${lot.availableQuantityKg.toLocaleString('vi-VN')} kg`,
-      };
+    if (params.actualDispatchedKg <= 0 || params.actualDispatchedKg > lot.availableQuantityKg) {
+      return { success: false, error: 'Khối lượng thực xuất vượt tồn khả dụng' };
     }
 
     // Atomic execution
     lot.availableQuantityKg -= params.actualDispatchedKg;
-    this.data.finishedInventoryBalanceKg -= params.actualDispatchedKg;
+    if (prop.sourceWarehouse === 'KHO_A') {
+      this.data.finishedInventoryWarehouseA_Kg -= params.actualDispatchedKg;
+    } else {
+      this.data.finishedInventoryWarehouseB_Kg -= params.actualDispatchedKg;
+    }
 
     prop.isDispatched = true;
     prop.status = 'DISPATCHED';
@@ -2484,11 +2379,44 @@ class DatabaseService {
     prop.dispatchedByName = params.user.fullName;
     prop.dispatchEvidenceImageUrl = params.dispatchEvidenceImageUrl;
 
+    // Automatic Financial link: Generate Sale Invoice
+    const invCode = `INV-2026-${String(this.data.saleInvoices.length + 1).padStart(3, '0')}`;
+    const unitPrice = prop.unitPriceVnd || 3850;
+    const totalAmount = params.actualDispatchedKg * unitPrice;
+
+    const newInvoice: SaleInvoice = {
+      id: `inv-${Date.now()}`,
+      code: invCode,
+      proposalId: prop.id,
+      proposalCode: prop.code,
+      customerId: prop.customerId,
+      customerName: prop.customerName,
+      warehouseType: prop.sourceWarehouse,
+      productName: 'Viên nén gỗ',
+      dispatchedQuantityKg: params.actualDispatchedKg,
+      unitPriceVnd: unitPrice,
+      totalAmountVnd: totalAmount,
+      paidAmountVnd: 0,
+      remainingAmountVnd: totalAmount,
+      paymentStatus: 'UNPAID',
+      invoiceDate: new Date().toISOString().split('T')[0],
+      paymentHistory: [],
+    };
+    this.data.saleInvoices.unshift(newInvoice);
+
+    // Update customer total
+    const cust = this.data.customers.find((c) => c.id === prop.customerId);
+    if (cust) {
+      cust.totalOrderedKg = (cust.totalOrderedKg || 0) + params.actualDispatchedKg;
+      cust.totalReceivableVnd = (cust.totalReceivableVnd || 0) + totalAmount;
+    }
+
     const sm: StockMovement = {
       id: `sm-${Date.now()}`,
       timestamp: new Date().toISOString(),
       materialCategory: 'FINISHED_GOODS',
-      materialName: prop.productName,
+      materialName: 'Viên nén gỗ',
+      warehouseType: prop.sourceWarehouse,
       movementType: 'OUT',
       quantityKg: params.actualDispatchedKg,
       referenceDocumentType: 'CUSTOMER_DISPATCH',
@@ -2496,8 +2424,11 @@ class DatabaseService {
       lotCode: lot.lotCode,
       confirmedById: params.user.id,
       confirmedByName: params.user.fullName,
-      balanceAfterKg: this.data.finishedInventoryBalanceKg,
-      notes: `Xuất kho giao cho ${prop.customerName} (Xe ${params.truckPlateVerified})`,
+      balanceAfterKg:
+        prop.sourceWarehouse === 'KHO_A'
+          ? this.data.finishedInventoryWarehouseA_Kg
+          : this.data.finishedInventoryWarehouseB_Kg,
+      notes: `Xuất kho từ ${prop.sourceWarehouse} cho xe ${params.truckPlateVerified}`,
     };
     this.data.stockMovements.unshift(sm);
 
@@ -2505,13 +2436,53 @@ class DatabaseService {
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: 'Xác nhận xuất kho bàn giao hàng thực tế',
+      action: 'Xuất kho',
       entityType: 'OUTBOUND_PROPOSAL',
       entityId: prop.id,
       entityCode: prop.code,
       previousState: 'APPROVED',
       newState: 'DISPATCHED',
-      details: `Đã bàn giao ${params.actualDispatchedKg.toLocaleString('vi-VN')} kg từ ${lot.lotCode} cho xe ${params.truckPlateVerified}`,
+      details: `Đã giao ${params.actualDispatchedKg.toLocaleString('vi-VN')} kg cho ${prop.customerName}. Tạo hóa đơn ${invCode}`,
+    });
+
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
+  // WF-12 Warehouse Staff: Từ chối xuất kho (Sec 24)
+  public rejectDispatch(params: {
+    proposalId: string;
+    reason: string;
+    user: User;
+  }): { success: boolean; error?: string } {
+    const prop = this.data.outboundProposals.find((p) => p.id === params.proposalId);
+    if (!prop) return { success: false, error: 'Không tìm thấy đề xuất' };
+    if (!params.reason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do từ chối xuất kho' };
+
+    prop.status = 'REJECTED_BY_WAREHOUSE';
+    prop.dispatchRejectionReason = params.reason.trim();
+
+    this.addAuditLog({
+      actorId: params.user.id,
+      actorName: params.user.fullName,
+      actorRole: params.user.role,
+      action: 'Thủ kho từ chối xuất kho',
+      entityType: 'OUTBOUND_PROPOSAL',
+      entityId: prop.id,
+      entityCode: prop.code,
+      previousState: 'APPROVED',
+      newState: 'REJECTED_BY_WAREHOUSE',
+      reason: params.reason,
+      details: 'Không trừ tồn kho thành phẩm. Đã gửi cảnh báo đến Quản lý và Giám đốc.',
+    });
+
+    this.addNotification({
+      recipientRole: 'O',
+      title: 'Thủ kho từ chối xuất hàng',
+      message: `${prop.code} (${prop.customerName}) bị từ chối: "${params.reason}"`,
+      entityType: 'OUTBOUND_PROPOSAL',
+      entityId: prop.id,
+      targetView: 'outbound',
     });
 
     this.persist({ ...this.data });
@@ -2557,18 +2528,18 @@ class DatabaseService {
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: 'Báo cáo sự cố máy móc',
+      action: 'Báo sự cố máy',
       entityType: 'MACHINE_FAILURE',
       entityId: id,
       entityCode: code,
       newState: 'REPORTED',
-      details: `${code}: ${machine.name} - Mức độ: ${params.severity} - Hiện tượng: ${params.symptoms}`,
+      details: `${code}: ${machine.name} (${params.severity})`,
     });
 
     this.addNotification({
       recipientRole: 'M',
-      title: 'Sự cố máy móc mới',
-      message: `${code}: ${machine.name} gặp sự cố mức độ ${params.severity}`,
+      title: 'Sự cố máy mới',
+      message: `${code}: ${machine.name} gặp sự cố`,
       entityType: 'MACHINE_FAILURE',
       entityId: id,
       targetView: 'maintenance',
@@ -2589,9 +2560,7 @@ class DatabaseService {
     if (!fail) return { success: false, error: 'Không tìm thấy sự cố' };
 
     if (params.decision === 'REJECT') {
-      if (!params.rejectionReason || !params.rejectionReason.trim()) {
-        return { success: false, error: 'Bắt buộc nhập lý do từ chối' };
-      }
+      if (!params.rejectionReason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do từ chối' };
       fail.status = 'REJECTED';
       fail.rejectionReason = params.rejectionReason;
       const machine = this.data.machines.find((m) => m.id === fail.machineId);
@@ -2601,7 +2570,7 @@ class DatabaseService {
         actorId: params.user.id,
         actorName: params.user.fullName,
         actorRole: params.user.role,
-        action: 'Từ chối yêu cầu bảo trì',
+        action: 'Từ chối',
         entityType: 'MACHINE_FAILURE',
         entityId: fail.id,
         entityCode: fail.code,
@@ -2616,7 +2585,6 @@ class DatabaseService {
     const staff = this.data.users.find((u) => u.id === params.maintenanceStaffId);
     if (!staff) return { success: false, error: 'Không tìm thấy nhân viên bảo trì' };
 
-    // In a single action: tiếp nhận và phân công
     fail.status = 'ASSIGNED';
     fail.assignedMaintenanceStaffId = staff.id;
     fail.assignedMaintenanceStaffName = staff.fullName;
@@ -2631,23 +2599,13 @@ class DatabaseService {
       actorId: params.user.id,
       actorName: params.user.fullName,
       actorRole: params.user.role,
-      action: 'Tiếp nhận và phân công bảo trì',
+      action: 'Tiếp nhận & Phân công',
       entityType: 'MACHINE_FAILURE',
       entityId: fail.id,
       entityCode: fail.code,
       previousState: 'REPORTED',
       newState: 'ASSIGNED',
-      details: `Phân công kỹ thuật viên ${staff.fullName} xử lý ${fail.code}`,
-    });
-
-    this.addNotification({
-      recipientUserId: staff.id,
-      recipientRole: 'MS',
-      title: 'Công việc sửa chữa mới',
-      message: `Bạn được phân công sửa chữa ${fail.code} (${fail.machineName})`,
-      entityType: 'MACHINE_FAILURE',
-      entityId: fail.id,
-      targetView: 'maintenance',
+      details: `Phân công kỹ thuật viên ${staff.fullName}`,
     });
 
     this.persist({ ...this.data });
@@ -2655,7 +2613,7 @@ class DatabaseService {
   }
 
   // ==========================================
-  // WF-11 & WF-12 MAINTENANCE EXECUTION & MATERIAL REQUESTS
+  // WF-12 MAINTENANCE MATERIALS & ACTUAL PURCHASE
   // ==========================================
   public createMaterialRequest(params: {
     failureReportId: string;
@@ -2664,9 +2622,6 @@ class DatabaseService {
   }): { success: boolean; error?: string } {
     const fail = this.data.failures.find((f) => f.id === params.failureReportId);
     if (!fail) return { success: false, error: 'Không tìm thấy sự cố' };
-    if (!params.items || params.items.length === 0) {
-      return { success: false, error: 'Phải yêu cầu ít nhất 1 loại vật tư' };
-    }
 
     const nextNum = this.data.materialRequests.length + 9;
     const code = `MAT-REQ-2026-${String(nextNum).padStart(3, '0')}`;
@@ -2693,27 +2648,6 @@ class DatabaseService {
     };
 
     this.data.materialRequests.unshift(req);
-
-    this.addAuditLog({
-      actorId: params.user.id,
-      actorName: params.user.fullName,
-      actorRole: params.user.role,
-      action: 'Tạo đề xuất vật tư bảo trì',
-      entityType: 'MAINTENANCE_MATERIAL_REQUEST',
-      entityId: id,
-      entityCode: code,
-      details: `${code}: ${params.items.length} hạng mục vật tư cho ${fail.machineName}`,
-    });
-
-    this.addNotification({
-      recipientRole: 'M',
-      title: 'Đề xuất vật tư bảo trì chờ duyệt',
-      message: `${params.user.fullName} đề xuất ${params.items.length} loại vật tư cho ${fail.code}`,
-      entityType: 'MAINTENANCE_MATERIAL_REQUEST',
-      entityId: id,
-      targetView: 'maintenance',
-    });
-
     this.persist({ ...this.data });
     return { success: true };
   }
@@ -2736,32 +2670,79 @@ class DatabaseService {
 
     if (params.decision === 'APPROVE') {
       item.status = 'APPROVED';
-      this.addAuditLog({
-        actorId: params.user.id,
-        actorName: params.user.fullName,
-        actorRole: params.user.role,
-        action: 'Duyệt dòng vật tư bảo trì',
-        entityType: 'MAINTENANCE_MATERIAL_ITEM',
-        entityId: item.id,
-        details: `Duyệt cấp ${item.requestedQuantity} ${item.unit} ${item.materialName}`,
-      });
     } else {
-      if (!params.rejectionReason || !params.rejectionReason.trim()) {
-        return { success: false, error: 'Bắt buộc nhập lý do từ chối cho dòng vật tư này' };
-      }
+      if (!params.rejectionReason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do từ chối' };
       item.status = 'REJECTED';
       item.rejectionReason = params.rejectionReason;
-      this.addAuditLog({
-        actorId: params.user.id,
-        actorName: params.user.fullName,
-        actorRole: params.user.role,
-        action: 'Từ chối dòng vật tư bảo trì',
-        entityType: 'MAINTENANCE_MATERIAL_ITEM',
-        entityId: item.id,
-        reason: params.rejectionReason,
-        details: `Từ chối cấp ${item.materialName}`,
-      });
     }
+
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
+  // Record Actual Material Purchase and link to Finance Expense! (Sec 29)
+  public recordActualMaterialPurchase(params: {
+    requestId: string;
+    itemId: string;
+    actualPurchasedQuantity: number;
+    actualUnitPriceVnd: number;
+    supplierName?: string;
+    invoiceUrl?: string;
+    purchaseNotes?: string;
+    user: User;
+  }): { success: boolean; error?: string } {
+    const req = this.data.materialRequests.find((r) => r.id === params.requestId);
+    if (!req) return { success: false, error: 'Không tìm thấy yêu cầu' };
+    const item = req.items.find((i) => i.id === params.itemId);
+    if (!item) return { success: false, error: 'Không tìm thấy vật tư' };
+    if (item.status !== 'APPROVED') {
+      return { success: false, error: 'Chỉ ghi nhận mua thực tế cho vật tư đã được phê duyệt' };
+    }
+
+    const total = params.actualPurchasedQuantity * params.actualUnitPriceVnd;
+    item.isPurchased = true;
+    item.actualPurchasedQuantity = params.actualPurchasedQuantity;
+    item.actualUnitPriceVnd = params.actualUnitPriceVnd;
+    item.actualTotalAmountVnd = total;
+    item.purchasedAt = new Date().toISOString();
+    item.supplierName = params.supplierName;
+    item.invoiceUrl = params.invoiceUrl;
+    item.purchasedById = params.user.id;
+    item.purchasedByName = params.user.fullName;
+    item.purchaseNotes = params.purchaseNotes;
+
+    // Register into Finance Expense records!
+    const expCode = `EXP-2026-${String(this.data.expenseRecords.length + 1).padStart(3, '0')}`;
+    const newExp: ExpenseRecord = {
+      id: `exp-${Date.now()}`,
+      code: expCode,
+      expenseDate: new Date().toISOString().split('T')[0],
+      category: 'MAINTENANCE_PARTS',
+      title: `Mua ${item.materialName} (${params.actualPurchasedQuantity} ${item.unit})`,
+      amountVnd: total,
+      status: 'PAID',
+      linkedEntityId: req.id,
+      linkedEntityCode: req.code,
+      recipientOrVendor: params.supplierName || 'Nhà cung ứng phụ tùng',
+      receiptImageUrl: params.invoiceUrl,
+      createdById: params.user.id,
+      createdByName: params.user.fullName,
+      createdAt: new Date().toISOString(),
+      paidAt: new Date().toISOString(),
+      paidById: params.user.id,
+      paidByName: params.user.fullName,
+    };
+    this.data.expenseRecords.unshift(newExp);
+
+    this.addAuditLog({
+      actorId: params.user.id,
+      actorName: params.user.fullName,
+      actorRole: params.user.role,
+      action: 'Ghi nhận mua vật tư thực tế',
+      entityType: 'MAINTENANCE_MATERIAL_ITEM',
+      entityId: item.id,
+      details: `Mua ${params.actualPurchasedQuantity} ${item.unit} ${item.materialName} - Thành tiền: ${total.toLocaleString('vi-VN')} VND. Tự động ghi nhận khoản chi ${expCode}`,
+    });
 
     this.persist({ ...this.data });
     return { success: true };
@@ -2799,26 +2780,6 @@ class DatabaseService {
 
     fail.status = 'UNDER_REPAIR';
     this.data.maintenanceReports.unshift(report);
-
-    this.addAuditLog({
-      actorId: params.user.id,
-      actorName: params.user.fullName,
-      actorRole: params.user.role,
-      action: 'Nộp báo cáo hoàn thành sửa chữa',
-      entityType: 'MAINTENANCE_REPORT',
-      entityId: report.id,
-      details: `Kỹ thuật viên ${params.user.fullName} đã sửa xong ${fail.machineName}`,
-    });
-
-    this.addNotification({
-      recipientRole: 'M',
-      title: 'Báo cáo sửa chữa chờ nghiệm thu',
-      message: `${params.user.fullName} đã hoàn thành sửa ${fail.machineName}`,
-      entityType: 'MAINTENANCE_REPORT',
-      entityId: report.id,
-      targetView: 'maintenance',
-    });
-
     this.persist({ ...this.data });
     return { success: true };
   }
@@ -2842,30 +2803,9 @@ class DatabaseService {
 
       if (fail) fail.status = 'COMPLETED';
       if (machine) machine.status = 'OPERATIONAL';
-
-      this.addAuditLog({
-        actorId: params.user.id,
-        actorName: params.user.fullName,
-        actorRole: params.user.role,
-        action: 'Nghiệm thu hoàn thành bảo trì',
-        entityType: 'MAINTENANCE_REPORT',
-        entityId: report.id,
-        details: `Xác nhận máy ${report.machineName} đã chạy thử an toàn và trở lại trạng thái OPERATIONAL`,
-      });
     } else {
-      if (!params.returnReason || !params.returnReason.trim()) {
-        return { success: false, error: 'Bắt buộc nhập lý do yêu cầu sửa lại' };
-      }
+      if (!params.returnReason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do' };
       report.returnReason = params.returnReason;
-      this.addAuditLog({
-        actorId: params.user.id,
-        actorName: params.user.fullName,
-        actorRole: params.user.role,
-        action: 'Yêu cầu kiểm tra lại kết quả bảo trì',
-        entityType: 'MAINTENANCE_REPORT',
-        entityId: report.id,
-        reason: params.returnReason,
-      });
     }
 
     this.persist({ ...this.data });
@@ -2873,114 +2813,197 @@ class DatabaseService {
   }
 
   // ==========================================
-  // WF-13 MACHINE MANAGEMENT
+  // XIV. FINANCIAL MANAGEMENT (Revenue, Receivables, Payables, Expenses)
   // ==========================================
-  public addMachine(params: Omit<Machine, 'id'>, user: User): { success: boolean; error?: string } {
+  public recordCustomerPayment(
+    invoiceId: string,
+    amount: number,
+    notes?: string,
+    user?: User
+  ): { success: boolean; error?: string } {
+    const inv = this.data.saleInvoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, error: 'Không tìm thấy hóa đơn' };
+    if (amount <= 0 || amount > inv.remainingAmountVnd) {
+      return { success: false, error: 'Số tiền thu không hợp lệ' };
+    }
+
+    inv.paidAmountVnd += amount;
+    inv.remainingAmountVnd -= amount;
+    inv.paymentStatus = inv.remainingAmountVnd === 0 ? 'PAID' : 'PARTIALLY_PAID';
+
+    inv.paymentHistory.push({
+      amount,
+      paidAt: new Date().toISOString(),
+      recordedByName: user?.fullName || 'Giám đốc',
+      notes,
+    });
+
+    this.addAuditLog({
+      actorId: user?.id || 'sys',
+      actorName: user?.fullName || 'Hệ thống',
+      actorRole: user?.role || 'O',
+      action: 'Ghi nhận thanh toán khách hàng',
+      entityType: 'SALE_INVOICE',
+      entityId: inv.id,
+      entityCode: inv.code,
+      details: `Thu ${amount.toLocaleString('vi-VN')} VND từ ${inv.customerName}`,
+    });
+
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
+  public createExpenseProposal(params: {
+    expenseDate: string;
+    category: ExpenseCategory;
+    title: string;
+    amountVnd: number;
+    recipientOrVendor: string;
+    receiptImageUrl?: string;
+    user: User;
+  }): { success: boolean; error?: string } {
+    if (params.amountVnd <= 0) return { success: false, error: 'Số tiền phải lớn hơn 0' };
+
+    const isOwner = params.user.role === 'O';
+    const status = isOwner ? 'APPROVED' : 'PENDING_APPROVAL';
+    const code = `EXP-2026-${String(this.data.expenseRecords.length + 1).padStart(3, '0')}`;
+
+    const exp: ExpenseRecord = {
+      id: `exp-${Date.now()}`,
+      code,
+      expenseDate: params.expenseDate,
+      category: params.category,
+      title: params.title,
+      amountVnd: params.amountVnd,
+      status,
+      recipientOrVendor: params.recipientOrVendor,
+      receiptImageUrl: params.receiptImageUrl,
+      createdById: params.user.id,
+      createdByName: params.user.fullName,
+      createdAt: new Date().toISOString(),
+      approvedById: isOwner ? params.user.id : undefined,
+      approvedByName: isOwner ? params.user.fullName : undefined,
+      approvedAt: isOwner ? new Date().toISOString() : undefined,
+    };
+
+    this.data.expenseRecords.unshift(exp);
+
+    this.addAuditLog({
+      actorId: params.user.id,
+      actorName: params.user.fullName,
+      actorRole: params.user.role,
+      action: isOwner ? 'Owner duyệt chi trực tiếp' : 'Tạo đề xuất chi phí',
+      entityType: 'EXPENSE_RECORD',
+      entityId: exp.id,
+      entityCode: code,
+      details: `${code}: ${params.title} - ${params.amountVnd.toLocaleString('vi-VN')} VND`,
+    });
+
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
+  public decideExpense(params: {
+    expenseId: string;
+    decision: 'APPROVE' | 'REJECT';
+    reason?: string;
+    user: User;
+  }): { success: boolean; error?: string } {
+    const exp = this.data.expenseRecords.find((e) => e.id === params.expenseId);
+    if (!exp) return { success: false, error: 'Không tìm thấy khoản chi' };
+
+    if (params.decision === 'APPROVE') {
+      exp.status = 'APPROVED';
+      exp.approvedById = params.user.id;
+      exp.approvedByName = params.user.fullName;
+      exp.approvedAt = new Date().toISOString();
+    } else {
+      if (!params.reason?.trim()) return { success: false, error: 'Bắt buộc nhập lý do' };
+      exp.status = 'REJECTED';
+      exp.rejectionReason = params.reason;
+    }
+
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
+  public recordExpensePayment(expenseId: string, user: User): { success: boolean; error?: string } {
+    const exp = this.data.expenseRecords.find((e) => e.id === expenseId);
+    if (!exp) return { success: false, error: 'Không tìm thấy khoản chi' };
+
+    exp.status = 'PAID';
+    exp.paidAt = new Date().toISOString();
+    exp.paidById = user.id;
+    exp.paidByName = user.fullName;
+
+    this.addAuditLog({
+      actorId: user.id,
+      actorName: user.fullName,
+      actorRole: user.role,
+      action: 'Xác nhận thanh toán chi phí',
+      entityType: 'EXPENSE_RECORD',
+      entityId: exp.id,
+      entityCode: exp.code,
+      details: `Đã chi ${exp.amountVnd.toLocaleString('vi-VN')} VND cho ${exp.recipientOrVendor}`,
+    });
+
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
+  // Master Data Methods
+  public addMachine(params: Omit<Machine, 'id'>, user: User) {
     const id = `m-${Date.now()}`;
     const machine: Machine = { ...params, id };
     this.data.machines.push(machine);
-    this.addAuditLog({
-      actorId: user.id,
-      actorName: user.fullName,
-      actorRole: user.role,
-      action: 'Thêm mới thiết bị máy móc',
-      entityType: 'MACHINE',
-      entityId: id,
-      entityCode: machine.code,
-      details: `${machine.code} - ${machine.name} (${machine.stage})`,
-    });
     this.persist({ ...this.data });
     return { success: true };
   }
 
-  public updateMachineStatus(
-    machineId: string,
-    status: Machine['status'],
-    user: User
-  ): { success: boolean; error?: string } {
+  public updateMachineStatus(machineId: string, status: Machine['status'], user: User) {
     const machine = this.data.machines.find((m) => m.id === machineId);
     if (!machine) return { success: false, error: 'Không tìm thấy máy' };
-    const prev = machine.status;
     machine.status = status;
-    this.addAuditLog({
-      actorId: user.id,
-      actorName: user.fullName,
-      actorRole: user.role,
-      action: 'Cập nhật trạng thái máy',
-      entityType: 'MACHINE',
-      entityId: machine.id,
-      entityCode: machine.code,
-      previousState: prev,
-      newState: status,
-    });
     this.persist({ ...this.data });
     return { success: true };
   }
 
-  // ==========================================
-  // WF-14 SUPPLIER & CUSTOMER
-  // ==========================================
-  public addSupplier(params: Omit<Supplier, 'id'>, user: User): { success: boolean; error?: string } {
+  public addSupplier(params: Omit<Supplier, 'id'>, user: User) {
     const id = `sup-${Date.now()}`;
-    const sup: Supplier = { ...params, id };
+    const sup: Supplier = { ...params, id, totalPurchasedKg: 0, totalPaidVnd: 0 };
     this.data.suppliers.push(sup);
-    this.addAuditLog({
-      actorId: user.id,
-      actorName: user.fullName,
-      actorRole: user.role,
-      action: 'Thêm mới Nhà cung cấp',
-      entityType: 'SUPPLIER',
-      entityId: id,
-      entityCode: sup.code,
-      details: `${sup.name} (${sup.contactPerson})`,
-    });
     this.persist({ ...this.data });
     return { success: true };
   }
 
-  public addCustomer(params: Omit<Customer, 'id'>, user: User): { success: boolean; error?: string } {
+  public updateSupplier(id: string, params: Partial<Supplier>, user: User) {
+    const sup = this.data.suppliers.find((s) => s.id === id);
+    if (!sup) return { success: false, error: 'Không tìm thấy NCC' };
+    Object.assign(sup, params);
+    this.persist({ ...this.data });
+    return { success: true };
+  }
+
+  public addCustomer(params: Omit<Customer, 'id'>, user: User) {
     const id = `cus-${Date.now()}`;
-    const cus: Customer = { ...params, id };
+    const cus: Customer = { ...params, id, totalOrderedKg: 0, totalReceivableVnd: 0 };
     this.data.customers.push(cus);
-    this.addAuditLog({
-      actorId: user.id,
-      actorName: user.fullName,
-      actorRole: user.role,
-      action: 'Thêm mới Khách hàng',
-      entityType: 'CUSTOMER',
-      entityId: id,
-      entityCode: cus.code,
-      details: `${cus.name} (${cus.contactPerson})`,
-    });
     this.persist({ ...this.data });
     return { success: true };
   }
 
-  // ==========================================
-  // WF-16 USER & ACCESS MANAGEMENT (ADMIN ONLY)
-  // ==========================================
-  public createUserAccount(
-    params: {
-      username: string;
-      fullName: string;
-      email: string;
-      phone: string;
-      role: RoleCode;
-      avatarUrl?: string;
-    },
-    adminUser: User
-  ): { success: boolean; error?: string } {
-    if (adminUser.role !== 'A') {
-      return { success: false, error: 'Chỉ Quản trị viên Hệ thống (Admin) mới có quyền tạo tài khoản' };
-    }
-    if (params.role === 'O') {
-      return { success: false, error: 'Chính sách bảo mật: Không được phép tự cấp vai trò Owner qua giao diện Admin' };
-    }
-    const exists = this.data.users.some((u) => u.username.toLowerCase() === params.username.toLowerCase());
-    if (exists) {
-      return { success: false, error: 'Tên đăng nhập đã tồn tại trong hệ thống' };
-    }
+  public updateCustomer(id: string, params: Partial<Customer>, user: User) {
+    const cus = this.data.customers.find((c) => c.id === id);
+    if (!cus) return { success: false, error: 'Không tìm thấy KH' };
+    Object.assign(cus, params);
+    this.persist({ ...this.data });
+    return { success: true };
+  }
 
+  // Admin Methods
+  public createUserAccount(params: any, adminUser: User) {
+    if (adminUser.role !== 'A') return { success: false, error: 'Chỉ Admin mới có quyền' };
+    if (params.role === 'O') return { success: false, error: 'Không thể cấp quyền Owner' };
     const id = `u-${params.role.toLowerCase()}-${Date.now()}`;
     const newUser: User = {
       id,
@@ -2990,62 +3013,30 @@ class DatabaseService {
       phone: params.phone,
       role: params.role,
       isActive: true,
-      avatarUrl: params.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
       createdAt: new Date().toISOString(),
     };
-
     this.data.users.push(newUser);
-    this.addAuditLog({
-      actorId: adminUser.id,
-      actorName: adminUser.fullName,
-      actorRole: adminUser.role,
-      action: 'Tạo tài khoản người dùng mới',
-      entityType: 'USER',
-      entityId: id,
-      details: `Tạo tài khoản ${newUser.username} (${newUser.fullName}) vai trò ${newUser.role}`,
-    });
-
     this.persist({ ...this.data });
     return { success: true };
   }
 
-  public toggleUserLock(userId: string, adminUser: User): { success: boolean; error?: string } {
-    if (adminUser.role !== 'A') {
-      return { success: false, error: 'Chỉ Quản trị viên Hệ thống (Admin) mới có quyền khóa/mở khóa tài khoản' };
-    }
+  public toggleUserLock(userId: string, adminUser: User) {
+    if (adminUser.role !== 'A') return { success: false, error: 'Chỉ Admin mới có quyền' };
     const user = this.data.users.find((u) => u.id === userId);
-    if (!user) return { success: false, error: 'Không tìm thấy người dùng' };
-    if (user.role === 'O') {
-      return { success: false, error: 'Không thể khóa tài khoản Giám đốc (Owner)' };
-    }
-
+    if (!user || user.role === 'O') return { success: false, error: 'Không thể khóa' };
     user.isActive = !user.isActive;
-    this.addAuditLog({
-      actorId: adminUser.id,
-      actorName: adminUser.fullName,
-      actorRole: adminUser.role,
-      action: user.isActive ? 'Mở khóa tài khoản' : 'Khóa tài khoản',
-      entityType: 'USER',
-      entityId: user.id,
-      details: `${user.username} (${user.fullName})`,
-    });
-
     this.persist({ ...this.data });
     return { success: true };
   }
 
-  public updateUserProfile(
-    userId: string,
-    params: { fullName: string; phone: string; email: string; avatarUrl?: string }
-  ): { success: boolean; error?: string } {
+  public updateUserProfile(userId: string, params: any) {
     const user = this.data.users.find((u) => u.id === userId);
     if (!user) return { success: false, error: 'Không tìm thấy người dùng' };
-
     user.fullName = params.fullName;
     user.phone = params.phone;
     user.email = params.email;
     if (params.avatarUrl) user.avatarUrl = params.avatarUrl;
-
     this.persist({ ...this.data });
     return { success: true };
   }

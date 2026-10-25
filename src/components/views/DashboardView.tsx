@@ -43,7 +43,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser, onNav
   const pendingShiftReports = snapshot.shiftReports.filter((r) => r.status === 'SUBMITTED').length;
 
   const pendingQcLots = snapshot.lots.filter((l) => l.qcStatus === 'PENDING' || l.qcStatus === 'IN_TESTING').length;
-  const passedLots = snapshot.lots.filter((l) => l.qcStatus === 'QC_PASSED').length;
+  const passedLots = snapshot.lots.filter((l) => l.qcStatus === 'QC_COMPLETED').length;
 
   const pendingOutboundApprovals = snapshot.outboundProposals.filter(
     (o) => o.status === 'PENDING_OWNER_APPROVAL'
@@ -145,22 +145,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ currentUser, onNav
             />
             <MetricCard
               title="Tồn kho Thành phẩm"
-              value={(snapshot.finishedInventoryBalanceKg / 1000).toLocaleString('vi-VN', {
+              value={((snapshot.finishedInventoryWarehouseA_Kg + snapshot.finishedInventoryWarehouseB_Kg) / 1000).toLocaleString('vi-VN', {
                 maximumFractionDigits: 1,
               })}
               unit="Tấn"
               iconName="Package"
               color="emerald"
-              subtext="Viên nén đạt chuẩn trong kho"
+              subtext={`Kho A: ${(snapshot.finishedInventoryWarehouseA_Kg / 1000).toFixed(1)}T • Kho B: ${(snapshot.finishedInventoryWarehouseB_Kg / 1000).toFixed(1)}T`}
             />
-            <MetricCard
-              title="Kế hoạch Đang chạy"
-              value={inProgressPlans}
-              unit="Kế hoạch"
-              iconName="Layers"
-              color="sky"
-              subtext="Các dây chuyền băm, sấy, ép"
-            />
+            {(role === 'O' || role === 'M') ? (
+              <MetricCard
+                title="Doanh thu Xuất hàng"
+                value={(
+                  snapshot.saleInvoices.reduce((sum, inv) => sum + inv.totalAmountVnd, 0) / 1_000_000
+                ).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
+                unit="Tr.đ"
+                iconName="TrendingUp"
+                color="sky"
+                subtext={`Công nợ còn: ${(snapshot.saleInvoices.reduce((sum, inv) => sum + inv.remainingAmountVnd, 0) / 1_000_000).toFixed(1)} Tr`}
+              />
+            ) : (
+              <MetricCard
+                title="Kế hoạch Đang chạy"
+                value={inProgressPlans}
+                unit="Kế hoạch"
+                iconName="Layers"
+                color="sky"
+                subtext="Các dây chuyền băm, sấy, ép"
+              />
+            )}
             <MetricCard
               title="Sự cố Máy móc"
               value={activeFailures}

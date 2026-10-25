@@ -109,7 +109,7 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
         {lots.map((lot) => {
           const testCount = lot.tests.length;
           const canAddTest =
-            testCount < 3 && Permissions.canPerformQcTest(currentUser.role) && lot.qcStatus !== 'RE_DRY_REQUIRED';
+            testCount < 3 && Permissions.canPerformQcTest(currentUser.role) && lot.qcStatus !== 'QC_COMPLETED';
 
           return (
             <div
@@ -125,7 +125,11 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-sm text-slate-900">{lot.productName}</h3>
-                      {lot.grade && <StatusBadge status={lot.grade} size="sm" />}
+                      {lot.targetWarehouse && (
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {lot.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
                       <span>Ngày sản xuất: {lot.productionDate}</span>
@@ -243,9 +247,6 @@ export const QualityControlView: React.FC<QualityControlViewProps> = ({ currentU
                       <ImageIcon className="w-4 h-4" />
                       Xem ảnh chụp mẫu đo
                     </button>
-                  )}
-                  {lot.reDryCount > 0 && (
-                    <span className="text-rose-600 font-medium">Đã yêu cầu sấy lại ({lot.reDryCount} lần)</span>
                   )}
                 </div>
 

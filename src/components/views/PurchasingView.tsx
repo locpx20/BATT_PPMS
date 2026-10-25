@@ -66,7 +66,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
 
   // Create Form State
   const [supplierId, setSupplierId] = useState(suppliers[0]?.id || '');
-  const [rawMaterialType, setRawMaterialType] = useState('Mùn cưa keo tràm');
+  const [rawMaterialType] = useState('Nguyên vật liệu');
   const [plannedQuantityKg, setPlannedQuantityKg] = useState<number>(20000);
   const [plannedDate, setPlannedDate] = useState(new Date().toISOString().split('T')[0]);
   const [assignedStaffId, setAssignedStaffId] = useState(
@@ -119,7 +119,6 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
     }
     const res = db.createPurchaseAssignment({
       supplierId,
-      rawMaterialType,
       plannedQuantityKg,
       plannedDate,
       assignedStaffId,
@@ -141,7 +140,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
     setUnitPriceVnd(p.unitPriceVnd || 750);
     setScaleTicketImageUrl(p.scaleTicketImageUrl);
     setInvoiceImageUrl(p.invoiceImageUrl);
-    setPurchasingNotes(p.purchasingNotes || '');
+    setPurchasingNotes(p.purchasingResultNotes || '');
     setFormError('');
     setShowRecordResultModal(true);
   };
@@ -164,7 +163,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
       unitPriceVnd,
       scaleTicketImageUrl,
       invoiceImageUrl,
-      purchasingNotes,
+      purchasingResultNotes: purchasingNotes,
       user: currentUser,
     });
 
@@ -451,20 +450,12 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Loại nguyên vật liệu <span className="text-rose-500">*</span>
+                  Loại nguyên vật liệu
                 </label>
-                <select
-                  value={rawMaterialType}
-                  onChange={(e) => setRawMaterialType(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 bg-white focus:outline-hidden focus:border-indigo-500"
-                >
-                  <option value="Mùn cưa keo tràm">Mùn cưa keo tràm</option>
-                  <option value="Dăm bào cao su">Dăm bào cao su</option>
-                  <option value="Dăm gỗ keo lá tràm">Dăm gỗ keo lá tràm</option>
-                  <option value="Mùn cưa thông">Mùn cưa thông</option>
-                  <option value="Dăm bào khô">Dăm bào khô</option>
-                  <option value="Cây củi tạp địa phương">Cây củi tạp địa phương</option>
-                </select>
+                <div className="w-full text-xs font-semibold border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-800 flex items-center justify-between">
+                  <span>Nguyên vật liệu (NVL)</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 font-mono">Chuẩn đầu vào</span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -576,7 +567,7 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
                   <span className="font-semibold text-slate-800">{selectedPurchase.supplierName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Loại NVL:</span>
+                  <span className="text-slate-400 block">Nguyên vật liệu:</span>
                   <span className="font-semibold text-slate-800">{selectedPurchase.rawMaterialType}</span>
                 </div>
                 <div>
@@ -586,14 +577,22 @@ export const PurchasingView: React.FC<PurchasingViewProps> = ({ currentUser }) =
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Ngày dự kiến:</span>
+                  <span className="text-slate-400 block">Ngày dự kiến cân:</span>
                   <span className="font-semibold text-slate-800">{selectedPurchase.plannedDate}</span>
                 </div>
               </div>
 
+              {/* Creator's Assignment Notes Display */}
+              {selectedPurchase.assignmentNotes && (
+                <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200/80 text-xs text-indigo-950">
+                  <span className="font-bold text-indigo-800 block mb-0.5">📌 Ghi chú chỉ đạo từ Cấp Quản lý:</span>
+                  <p className="italic">{selectedPurchase.assignmentNotes}</p>
+                </div>
+              )}
+
               {selectedPurchase.status === 'RETURNED' && selectedPurchase.returnReason && (
                 <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                  <span className="font-bold">Lý do bị trả lại trước đó: </span>
+                  <span className="font-bold">⚠️ Lý do bị trả lại trước đó: </span>
                   {selectedPurchase.returnReason}
                 </div>
               )}

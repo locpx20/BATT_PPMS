@@ -5,6 +5,7 @@ import { db } from '../../services/db';
 import { Permissions } from '../../services/rbac';
 import { MetricCard } from '../common/MetricCard';
 import { StatusBadge } from '../common/StatusBadge';
+import { ReasonModal } from '../common/ReasonModal';
 import { showToast } from '../common/Toast';
 import { Pagination } from '../common/Pagination';
 
@@ -32,10 +33,16 @@ export const RawInventoryView: React.FC<RawInventoryViewProps> = ({ currentUser 
   const [discrepancyReason, setDiscrepancyReason] = useState('');
   const [receiveError, setReceiveError] = useState('');
 
+  // Reject Purchase Modal
+  const [rejectModalConfig, setRejectModalConfig] = useState<{
+    isOpen: boolean;
+    purchase: PurchaseAssignment | null;
+  }>({ isOpen: false, purchase: null });
+
   // Issue Modal
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [issuePlanId, setIssuePlanId] = useState(plans[0]?.id || '');
-  const [rawMaterialType, setRawMaterialType] = useState('Mùn cưa keo tràm');
+  const [rawMaterialType, setRawMaterialType] = useState('Nguyên vật liệu');
   const [issuedQuantityKg, setIssuedQuantityKg] = useState<number>(20000);
   const [recipientDepartment, setRecipientDepartment] = useState('Tổ Vận hành Lò Sấy & Ép Viên');
   const [issueNotes, setIssueNotes] = useState('');
@@ -61,8 +68,7 @@ export const RawInventoryView: React.FC<RawInventoryViewProps> = ({ currentUser 
     const res = db.receiveRawMaterialIntoWarehouse({
       assignmentId: selectedPurchase.id,
       receivedQuantityKg,
-      warehouseNotes,
-      discrepancyReason,
+      warehouseNotes: discrepancyReason ? `${warehouseNotes ? warehouseNotes + ' | ' : ''}Lý do chênh lệch: ${discrepancyReason}` : warehouseNotes,
       user: currentUser,
     });
 
@@ -78,11 +84,25 @@ export const RawInventoryView: React.FC<RawInventoryViewProps> = ({ currentUser 
     }
   };
 
+  const handleConfirmReject = (reason: string) => {
+    if (!rejectModalConfig.purchase) return;
+    const res = db.rejectRawMaterialReceipt({
+      assignmentId: rejectModalConfig.purchase.id,
+      reason,
+      user: currentUser,
+    });
+    if (res.success) {
+      showToast('error', 'Đã từ chối nhận hàng', `Đã từ chối phiếu ${rejectModalConfig.purchase.code}`);
+      setRejectModalConfig({ isOpen: false, purchase: null });
+    } else {
+      showToast('error', 'Lỗi', res.error);
+    }
+  };
+
   const handleConfirmIssue = (e: React.FormEvent) => {
     e.preventDefault();
     const res = db.issueRawMaterial({
       planId: issuePlanId,
-      rawMaterialType,
       issuedQuantityKg,
       recipientDepartment,
       notes: issueNotes,
@@ -211,13 +231,22 @@ export const RawInventoryView: React.FC<RawInventoryViewProps> = ({ currentUser 
                       <td className="py-3 px-4">{p.approvedByName}</td>
                       <td className="py-3 px-4 text-center">
                         {Permissions.canReceiveRawMaterial(currentUser.role) ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenReceive(p)}
-                            className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
-                          >
-                            Xác nhận Nhập kho
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReceive(p)}
+                              className="px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                            >
+                              Nhập kho
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRejectModalConfig({ isOpen: true, purchase: p })}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer"
+                            >
+                              Từ chối
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-slate-400 text-[11px] italic">Chỉ Thủ kho được nhận</span>
                         )}
@@ -497,18 +526,14 @@ export const RawInventoryView: React.FC<RawInventoryViewProps> = ({ currentUser 
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Loại NVL cấp phát <span className="text-rose-500">*</span>
+                  Nguyên vật liệu cấp phát
                 </label>
-                <select
-                  value={rawMaterialType}
-                  onChange={(e) => setRawMaterialType(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 bg-white focus:outline-hidden focus:border-indigo-500"
-                >
-                  <option value="Mùn cưa keo tràm">Mùn cưa keo tràm</option>
-                  <option value="Dăm bào cao su">Dăm bào cao su</option>
-                  <option value="Dăm gỗ keo lá tràm">Dăm gỗ keo lá tràm</option>
-                  <option value="Mùn cưa thông">Mùn cưa thông</option>
-                </select>
+                <input
+                  type="text"
+                  readOnly
+                  value="Nguyên vật liệu"
+                  className="w-full text-xs border border-slate-200 rounded-lg p-2.5 text-slate-700 bg-slate-50 cursor-not-allowed font-medium"
+                />
               </div>
 
               <div>
@@ -575,6 +600,18 @@ export const RawInventoryView: React.FC<RawInventoryViewProps> = ({ currentUser 
             </form>
           </div>
         </div>
+      )}
+
+      {/* Rejection Reason Modal for Warehouse Staff */}
+      {rejectModalConfig.purchase && (
+        <ReasonModal
+          isOpen={rejectModalConfig.isOpen}
+          title="Từ chối Tiếp nhận Hàng mua"
+          actionType="REJECT"
+          entityName={rejectModalConfig.purchase.code}
+          onClose={() => setRejectModalConfig({ isOpen: false, purchase: null })}
+          onSubmit={handleConfirmReject}
+        />
       )}
     </div>
   );

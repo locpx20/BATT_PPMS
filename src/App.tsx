@@ -9,8 +9,8 @@ import { AccountModal } from './components/layout/AccountModal';
 import { ToastContainer } from './components/common/Toast';
 import { LoginView } from './components/auth/LoginView';
 
-// Views
 import { DashboardView } from './components/views/DashboardView';
+import { FinanceView } from './components/views/FinanceView';
 import { PurchasingView } from './components/views/PurchasingView';
 import { RawInventoryView } from './components/views/RawInventoryView';
 import { ProductionPlanView } from './components/views/ProductionPlanView';
@@ -84,11 +84,12 @@ export default function App() {
   // Calculate pending counts for badges
   const snapshot = db.getSnapshot();
   const pendingCounts: Partial<Record<NavItemKey, number>> = {
+    finance: snapshot.expenseRecords.filter((e) => e.status === 'PENDING_APPROVAL').length,
     purchasing: snapshot.purchases.filter((p) => p.status === 'SUBMITTED').length,
     'raw-inventory': snapshot.purchases.filter((p) => p.status === 'APPROVED').length,
     'shift-report': snapshot.shiftReports.filter((r) => r.status === 'SUBMITTED').length,
     qc: snapshot.lots.filter((l) => l.qcStatus === 'PENDING' || l.qcStatus === 'IN_TESTING').length,
-    'finished-goods': snapshot.lots.filter((l) => l.qcStatus === 'QC_PASSED' && !l.isReceivedInWarehouse).length,
+    'finished-goods': snapshot.lots.filter((l) => l.qcStatus === 'QC_COMPLETED' && !l.isReceivedInWarehouse).length,
     outbound: snapshot.outboundProposals.filter((o) => o.status === 'PENDING_OWNER_APPROVAL').length,
     maintenance: snapshot.failures.filter((f) => f.status === 'REPORTED').length,
   };
@@ -121,6 +122,8 @@ export default function App() {
           {currentView === 'dashboard' && (
             <DashboardView currentUser={currentUser} onNavigate={handleNavigateView} />
           )}
+
+          {currentView === 'finance' && <FinanceView currentUser={currentUser} />}
 
           {currentView === 'purchasing' && <PurchasingView currentUser={currentUser} />}
 

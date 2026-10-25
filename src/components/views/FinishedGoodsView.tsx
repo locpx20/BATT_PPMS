@@ -13,11 +13,13 @@ interface FinishedGoodsViewProps {
 
 export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUser }) => {
   const snapshot = db.getSnapshot();
-  const finishedBalance = snapshot.finishedInventoryBalanceKg;
+  const balanceA = snapshot.finishedInventoryWarehouseA_Kg;
+  const balanceB = snapshot.finishedInventoryWarehouseB_Kg;
+  const finishedBalance = balanceA + balanceB;
   const lots = snapshot.lots;
 
   // Filter lots: those ready for receipt vs those already in warehouse
-  const pendingReceiveLots = lots.filter((l) => l.qcStatus === 'QC_PASSED' && !l.isReceivedInWarehouse);
+  const pendingReceiveLots = lots.filter((l) => l.qcStatus === 'QC_COMPLETED' && !l.isReceivedInWarehouse);
   const inWarehouseLots = lots.filter((l) => l.isReceivedInWarehouse);
 
   // Traceability Modal
@@ -30,10 +32,11 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
     });
 
     if (res.success) {
+      const whName = lot.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)';
       showToast(
         'success',
         'Nhập kho thành phẩm thành công',
-        `Đã nhận ${lot.jumboBagsCount} bao Jumbo (${lot.quantityKg.toLocaleString('vi-VN')} kg) vào kho`
+        `Đã nhận ${lot.jumboBagsCount} bao Jumbo (${lot.quantityKg.toLocaleString('vi-VN')} kg) vào ${whName}`
       );
     } else {
       showToast('error', 'Lỗi', res.error);
@@ -42,31 +45,39 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
 
   return (
     <div className="space-y-6">
-      {/* Top Banner KPI */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Top Banner KPI - Distinct Kho A and Kho B */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <MetricCard
-          title="Tồn kho Thành phẩm"
-          value={(finishedBalance / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
+          title="Tồn Kho A (Xuất khẩu)"
+          value={(balanceA / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
           unit="Tấn"
           iconName="Package"
-          color="emerald"
-          subtext="Viên nén đạt chuẩn sẵn sàng xuất khẩu"
+          color="indigo"
+          subtext="Viên nén đạt chuẩn Grade A (ENplus-A1)"
         />
         <MetricCard
-          title="Lô hàng Chờ nhập kho"
+          title="Tồn Kho B (Công nghiệp)"
+          value={(balanceB / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
+          unit="Tấn"
+          iconName="Boxes"
+          color="sky"
+          subtext="Viên nén đạt chuẩn Grade B (Nồi hơi)"
+        />
+        <MetricCard
+          title="Tổng Tồn Thành phẩm"
+          value={(finishedBalance / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
+          unit="Tấn"
+          iconName="CheckCircle2"
+          color="emerald"
+          subtext="Tổng lượng khả dụng cả Kho A và Kho B"
+        />
+        <MetricCard
+          title="LOT Chờ nhập kho"
           value={pendingReceiveLots.length}
           unit="LOT"
-          iconName="CheckCircle2"
+          iconName="ArrowRight"
           color="amber"
           subtext="Đã đạt 3 lần QC, chờ thủ kho kiểm đếm"
-        />
-        <MetricCard
-          title="Lô hàng Đã lưu kho"
-          value={inWarehouseLots.length}
-          unit="LOT"
-          iconName="Boxes"
-          color="indigo"
-          subtext="Đang được theo dõi theo nguyên tắc FIFO"
         />
       </div>
 
@@ -91,7 +102,9 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-slate-900">{lot.lotCode}</span>
                     <span className="font-semibold text-slate-800">{lot.productName}</span>
-                    {lot.grade && <StatusBadge status={lot.grade} size="sm" />}
+                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {lot.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'}
+                    </span>
                   </div>
                   <p className="text-slate-500 mt-0.5">
                     Ngày sản xuất: {lot.productionDate} • Số lượng: {lot.quantityKg.toLocaleString('vi-VN')} kg (
@@ -153,7 +166,11 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
                     <td className="py-3 px-4 font-mono font-bold text-indigo-700">{lot.lotCode}</td>
                     <td className="py-3 px-4">{lot.productionDate}</td>
                     <td className="py-3 px-4 font-medium text-slate-800">{lot.productName}</td>
-                    <td className="py-3 px-4">{lot.grade && <StatusBadge status={lot.grade} size="sm" />}</td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${lot.targetWarehouse === 'KHO_A' ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {lot.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'}
+                      </span>
+                    </td>
                     <td className="py-3 px-4 text-right">{lot.quantityKg.toLocaleString('vi-VN')} kg</td>
                     <td className="py-3 px-4 text-right">{lot.jumboBagsCount} bao</td>
                     <td className="py-3 px-4 text-right font-bold text-slate-900">
@@ -218,7 +235,7 @@ export const FinishedGoodsView: React.FC<FinishedGoodsViewProps> = ({ currentUse
               {/* Step 3: 3 Independent QC Tests */}
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <span className="font-bold text-indigo-700 uppercase tracking-wider text-[11px] block">
-                  3. Kết quả 3 Lần Kiểm tra KCS Độc lập ({selectedLotTrace.grade})
+                  3. Kết quả 3 Lần Kiểm tra KCS Độc lập ({selectedLotTrace.targetWarehouse === 'KHO_A' ? 'Kho A - Xuất khẩu' : 'Kho B - Công nghiệp'})
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {selectedLotTrace.tests.map((t) => (

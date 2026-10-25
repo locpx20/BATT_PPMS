@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, CheckCircle2, RotateCcw, XCircle, FileText, Image as ImageIcon, X } from 'lucide-react';
+import { Plus, CheckCircle2, RotateCcw, XCircle, FileText, Image as ImageIcon, X, Eye } from 'lucide-react';
 import { User, ShiftReport, ProductionStage, PlanShift, STAGE_NAMES, SHIFT_NAMES } from '../../types';
 import { db } from '../../services/db';
 import { Permissions } from '../../services/rbac';
@@ -32,6 +32,9 @@ export const ShiftReportView: React.FC<ShiftReportViewProps> = ({ currentUser })
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Detail Modal for inspection before approval
+  const [detailReport, setDetailReport] = useState<ShiftReport | null>(null);
 
   // Reason modal for Return / Reject
   const [reasonModal, setReasonModal] = useState<{
@@ -192,32 +195,39 @@ export const ShiftReportView: React.FC<ShiftReportViewProps> = ({ currentUser })
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      {canDecide ? (
-                        <DecisionButtons
-                          size="sm"
-                          onApprove={() => handleApprove(r)}
-                          onReturn={() =>
-                            setReasonModal({
-                              isOpen: true,
-                              actionType: 'RETURN',
-                              targetId: r.id,
-                              entityCode: r.code,
-                            })
-                          }
-                          onReject={() =>
-                            setReasonModal({
-                              isOpen: true,
-                              actionType: 'REJECT',
-                              targetId: r.id,
-                              entityCode: r.code,
-                            })
-                          }
-                        />
-                      ) : (
-                        <span className="text-slate-400 text-[11px]">
-                          {r.status === 'APPROVED' ? `Duyệt bởi ${r.approvedByName}` : '—'}
-                        </span>
-                      )}
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setDetailReport(r)}
+                          className="px-2 py-1 rounded-md border border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 font-medium text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Xem chi tiết báo cáo ca"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Chi tiết</span>
+                        </button>
+                        {canDecide && (
+                          <DecisionButtons
+                            size="sm"
+                            onApprove={() => handleApprove(r)}
+                            onReturn={() =>
+                              setReasonModal({
+                                isOpen: true,
+                                actionType: 'RETURN',
+                                targetId: r.id,
+                                entityCode: r.code,
+                              })
+                            }
+                            onReject={() =>
+                              setReasonModal({
+                                isOpen: true,
+                                actionType: 'REJECT',
+                                targetId: r.id,
+                                entityCode: r.code,
+                              })
+                            }
+                          />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -388,6 +398,168 @@ export const ShiftReportView: React.FC<ShiftReportViewProps> = ({ currentUser })
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DETAIL MODAL (Inspect before approval) */}
+      {detailReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 font-mono font-bold text-xs">
+                  {detailReport.code}
+                </span>
+                <h3 className="font-bold text-slate-900 text-sm">Chi tiết Báo cáo Ca Sản xuất</h3>
+              </div>
+              <button
+                onClick={() => setDetailReport(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Status and Primary Attributes */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Trạng thái:</span>
+                  <StatusBadge status={detailReport.status} size="sm" />
+                </div>
+                {detailReport.lotCodeGenerated && (
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    LOT: {detailReport.lotCodeGenerated}
+                  </span>
+                )}
+              </div>
+
+              {/* Specs Grid */}
+              <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                <div>
+                  <span className="text-slate-400 block">Kế hoạch sản xuất:</span>
+                  <span className="font-bold text-indigo-700">{detailReport.planCode}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Ngày / Ca làm việc:</span>
+                  <span className="font-semibold text-slate-800">
+                    {detailReport.productionDate} • {detailReport.shift}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Công đoạn:</span>
+                  <span className="font-semibold text-slate-800">{STAGE_NAMES[detailReport.stage]}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Thiết bị máy:</span>
+                  <span className="font-semibold text-slate-800">{detailReport.machineName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">NVL thực dùng:</span>
+                  <span className="font-bold text-slate-900">
+                    {detailReport.actualMaterialUsedKg.toLocaleString('vi-VN')} kg
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Sản lượng thực tế:</span>
+                  <span className="font-bold text-emerald-700">
+                    {detailReport.actualOutputKg.toLocaleString('vi-VN')} kg
+                  </span>
+                </div>
+              </div>
+
+              {/* Incidents */}
+              {detailReport.hasIncident && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
+                  <span className="font-bold block mb-1">⚠️ Sự cố phát sinh trong ca:</span>
+                  <p>{detailReport.incidentDescription || 'Không có mô tả chi tiết'}</p>
+                </div>
+              )}
+
+              {/* Notes */}
+              {detailReport.notes && (
+                <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 text-xs text-slate-800">
+                  <span className="font-bold text-indigo-800 block mb-0.5">Ghi chú của công nhân:</span>
+                  <p className="italic">{detailReport.notes}</p>
+                </div>
+              )}
+
+              {/* Image Evidence */}
+              {detailReport.imageUrl && (
+                <div>
+                  <span className="block text-xs font-semibold text-slate-700 mb-1.5">Ảnh hiện trường / Mẫu:</span>
+                  <img
+                    src={detailReport.imageUrl}
+                    alt="Hiện trường ca máy"
+                    className="w-full h-44 object-cover rounded-xl border border-slate-200"
+                  />
+                </div>
+              )}
+
+              <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-100 flex items-center justify-between">
+                <span>Người báo cáo: {detailReport.reportedByName}</span>
+                <span>{new Date(detailReport.reportedAt).toLocaleString('vi-VN')}</span>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setDetailReport(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+
+              {detailReport.status === 'SUBMITTED' && Permissions.canDecideShiftReport(currentUser.role) && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rep = detailReport;
+                      setDetailReport(null);
+                      setReasonModal({
+                        isOpen: true,
+                        actionType: 'RETURN',
+                        targetId: rep.id,
+                        entityCode: rep.code,
+                      });
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg cursor-pointer"
+                  >
+                    Trả lại
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rep = detailReport;
+                      setDetailReport(null);
+                      setReasonModal({
+                        isOpen: true,
+                        actionType: 'REJECT',
+                        targetId: rep.id,
+                        entityCode: rep.code,
+                      });
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer"
+                  >
+                    Từ chối
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rep = detailReport;
+                      setDetailReport(null);
+                      handleApprove(rep);
+                    }}
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs cursor-pointer"
+                  >
+                    Phê duyệt
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

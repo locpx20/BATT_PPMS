@@ -8,6 +8,7 @@ import { RoleCode } from '../types';
 
 export type NavItemKey =
   | 'dashboard'
+  | 'finance'
   | 'purchasing'
   | 'raw-inventory'
   | 'production-plan'
@@ -35,6 +36,13 @@ export const NAV_ITEMS: NavItemConfig[] = [
     label: 'Tổng quan Điều hành',
     icon: 'LayoutDashboard',
     allowedRoles: ['O', 'M', 'PS', 'WS', 'S', 'QC', 'MS', 'A'],
+    group: 'CORE',
+  },
+  {
+    key: 'finance',
+    label: 'Tài chính & Doanh thu',
+    icon: 'DollarSign',
+    allowedRoles: ['O', 'M'],
     group: 'CORE',
   },
   {
@@ -173,6 +181,12 @@ export const Permissions = {
   canDecideMaintenanceMaterialItem: (role: RoleCode) => role === 'O' || role === 'M',
   canSubmitMaintenanceReport: (role: RoleCode) => role === 'MS',
   canApproveMaintenanceReport: (role: RoleCode) => role === 'O' || role === 'M',
+
+  // Finance & Expense
+  canManageFinance: (role: RoleCode) => role === 'O' || role === 'M',
+  canApproveExpense: (role: RoleCode) => role === 'O', // Owner exclusive
+  canProposeExpense: (role: RoleCode) => role === 'O' || role === 'M',
+  canRecordMaterialPurchaseActual: (role: RoleCode) => role === 'MS' || role === 'M' || role === 'O',
 
   // Master Data
   canManageMachines: (role: RoleCode) => role === 'O' || role === 'M',

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Truck, Plus, CheckCircle2, RotateCcw, XCircle, AlertTriangle, FileText, UserCheck, ShieldCheck, X } from 'lucide-react';
-import { User, OutboundProposal, OutboundProposalFlow, Customer, LotItem } from '../../types';
+import { User, OutboundProposal, Customer, LotItem } from '../../types';
 import { db } from '../../services/db';
 import { Permissions } from '../../services/rbac';
 import { StatusBadge } from '../common/StatusBadge';
@@ -26,11 +26,12 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
   const [showQcModal, setShowQcModal] = useState(false);
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [showOwnerDecisionModal, setShowOwnerDecisionModal] = useState(false);
+  const [dispatchRejectModal, setDispatchRejectModal] = useState<{
+    isOpen: boolean;
+    proposal: OutboundProposal | null;
+  }>({ isOpen: false, proposal: null });
 
   // Form states: Create proposal
-  const [proposalFlow, setProposalFlow] = useState<OutboundProposalFlow>(
-    currentUser.role === 'WS' ? 'FLOW_A' : 'FLOW_B'
-  );
   const [customerId, setCustomerId] = useState(customers[0]?.id || '');
   const [selectedLotId, setSelectedLotId] = useState(inWarehouseLots[0]?.id || '');
   const [requestedQuantityKg, setRequestedQuantityKg] = useState<number>(10000);
@@ -74,7 +75,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
   });
 
   const handleOpenCreate = () => {
-    setProposalFlow(currentUser.role === 'WS' ? 'FLOW_A' : 'FLOW_B');
     setCustomerId(customers[0]?.id || '');
     setSelectedLotId(inWarehouseLots[0]?.id || '');
     setRequestedQuantityKg(10000);
@@ -93,12 +93,10 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
     }
 
     const res = db.createOutboundProposal({
-      flow: proposalFlow,
+      sourceWarehouse: lot.targetWarehouse || 'KHO_A',
       customerId,
-      productName: lot.productName,
       lotId: lot.id,
       requestedQuantityKg,
-      unitPriceVnd,
       notes,
       user: currentUser,
     });
@@ -108,19 +106,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
       setShowCreateModal(false);
     } else {
       setCreateError(res.error || 'Lỗi khi tạo đề xuất');
-    }
-  };
-
-  const handleManagerReview = (p: OutboundProposal) => {
-    const res = db.managerReviewOutboundProposal({
-      proposalId: p.id,
-      action: 'FORWARD_TO_OWNER',
-      user: currentUser,
-    });
-    if (res.success) {
-      showToast('success', 'Đã chuyển Owner', `Đề xuất ${p.code} đã được chuyển cho Giám đốc duyệt`);
-    } else {
-      showToast('error', 'Lỗi', res.error);
     }
   };
 
@@ -140,7 +125,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
       proposalId: selectedProp.id,
       decision: 'APPROVE',
       newCustomerId: overrideCustomerId,
-      adjustedPriceVnd: adjustedPrice,
+      decidedPriceVnd: adjustedPrice,
       user: currentUser,
     });
 
@@ -239,6 +224,21 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
     }
   };
 
+  const handleConfirmRejectDispatch = (reason: string) => {
+    if (!dispatchRejectModal.proposal) return;
+    const res = db.rejectDispatch({
+      proposalId: dispatchRejectModal.proposal.id,
+      reason,
+      user: currentUser,
+    });
+    if (res.success) {
+      showToast('error', 'Đã từ chối xuất kho', `Đã từ chối xuất cho đề xuất ${dispatchRejectModal.proposal.code}`);
+      setDispatchRejectModal({ isOpen: false, proposal: null });
+    } else {
+      showToast('error', 'Lỗi', res.error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -246,13 +246,12 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Xuất xưởng & Bàn giao Thành phẩm</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Hỗ trợ Luồng A (Kho → Quản lý → Owner) và Luồng B (Quản lý → Owner) • Kiểm tra QC xuất hàng & Xác minh xe nhận
+            Quản lý & Thủ kho trực tiếp đề xuất lên Giám đốc duyệt giá bán • Thủ kho xác nhận xuất kho hoặc từ chối
           </p>
         </div>
 
         {/* Can create proposal */}
-        {(Permissions.canCreateOutboundProposalFlowA(currentUser.role) ||
-          Permissions.canCreateOutboundProposalFlowB(currentUser.role)) && (
+        {(currentUser.role === 'WS' || currentUser.role === 'M' || currentUser.role === 'O') && (
           <button
             type="button"
             onClick={handleOpenCreate}
@@ -271,7 +270,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
             <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="py-3 px-4">Mã đề xuất</th>
-                <th className="py-3 px-4">Quy trình</th>
+                <th className="py-3 px-4">Kho xuất</th>
                 <th className="py-3 px-4">Khách hàng</th>
                 <th className="py-3 px-4">Lô hàng xuất</th>
                 <th className="py-3 px-4 text-right">Khối lượng</th>
@@ -284,9 +283,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {proposals.map((p) => {
-                const canManagerReview =
-                  p.status === 'PENDING_MANAGER_REVIEW' && Permissions.canManagerReviewOutbound(currentUser.role);
-
                 const canOwnerDecide =
                   p.status === 'PENDING_OWNER_APPROVAL' && Permissions.canOwnerDecideOutbound(currentUser.role);
 
@@ -308,8 +304,8 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                   <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3 px-4 font-mono font-bold text-slate-900">{p.code}</td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                        {p.flow === 'FLOW_A' ? 'Luồng A (Kho)' : 'Luồng B (QL)'}
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {p.sourceWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'}
                       </span>
                     </td>
                     <td className="py-3 px-4 font-semibold text-slate-800">
@@ -373,17 +369,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                        {/* Flow A: Manager Review */}
-                        {canManagerReview && (
-                          <button
-                            type="button"
-                            onClick={() => handleManagerReview(p)}
-                            className="px-2.5 py-1 rounded-md bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 shadow-xs cursor-pointer"
-                          >
-                            Duyệt & Chuyển Owner
-                          </button>
-                        )}
-
                         {/* Owner Decision Action */}
                         {canOwnerDecide && (
                           <button
@@ -395,15 +380,24 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                           </button>
                         )}
 
-                        {/* Dispatch confirmation (Warehouse staff) */}
+                        {/* Dispatch confirmation / Rejection (Warehouse staff) */}
                         {canDispatch && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDispatch(p)}
-                            className="px-3 py-1 rounded-md bg-teal-600 text-white font-bold text-xs hover:bg-teal-700 shadow-xs cursor-pointer"
-                          >
-                            Xác nhận Xuất kho
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDispatch(p)}
+                              className="px-2.5 py-1 rounded-md bg-teal-600 text-white font-bold text-xs hover:bg-teal-700 shadow-xs cursor-pointer"
+                            >
+                              Xuất kho
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDispatchRejectModal({ isOpen: true, proposal: p })}
+                              className="px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs hover:bg-rose-100 cursor-pointer"
+                            >
+                              Từ chối
+                            </button>
+                          </div>
                         )}
 
                         {p.isDispatched && (
@@ -436,36 +430,6 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
             <form onSubmit={handleCreateProposal} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Quy trình phê duyệt <span className="text-rose-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setProposalFlow('FLOW_A')}
-                    className={`p-2.5 rounded-lg border text-xs font-semibold text-left transition-colors cursor-pointer ${
-                      proposalFlow === 'FLOW_A'
-                        ? 'border-indigo-600 bg-indigo-50/70 text-indigo-900'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Luồng A: Thủ kho đề xuất → Quản lý → Owner
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProposalFlow('FLOW_B')}
-                    className={`p-2.5 rounded-lg border text-xs font-semibold text-left transition-colors cursor-pointer ${
-                      proposalFlow === 'FLOW_B'
-                        ? 'border-indigo-600 bg-indigo-50/70 text-indigo-900'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Luồng B: Quản lý đề xuất → Trình thẳng Owner
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   Khách hàng mua hàng <span className="text-rose-500">*</span>
                 </label>
                 <select
@@ -494,7 +458,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
                 >
                   {inWarehouseLots.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.lotCode} ({l.productName} • {l.grade} • Khả dụng: {l.availableQuantityKg.toLocaleString('vi-VN')} kg)
+                      {l.lotCode} ({l.productName} • {l.targetWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'} • Khả dụng: {l.availableQuantityKg.toLocaleString('vi-VN')} kg)
                     </option>
                   ))}
                 </select>
@@ -517,14 +481,21 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Đơn giá đề xuất (VND/kg)
+                    Đơn giá bán
                   </label>
-                  <input
-                    type="number"
-                    value={unitPriceVnd}
-                    onChange={(e) => setUnitPriceVnd(Number(e.target.value))}
-                    className="w-full text-sm font-semibold border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
-                  />
+                  {currentUser.role === 'O' ? (
+                    <input
+                      type="number"
+                      value={unitPriceVnd}
+                      onChange={(e) => setUnitPriceVnd(Number(e.target.value))}
+                      placeholder="VND/kg"
+                      className="w-full text-sm font-semibold border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                    />
+                  ) : (
+                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-500 italic">
+                      Do Giám đốc (Owner) quyết định
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -583,7 +554,7 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
             <form onSubmit={handleOwnerApprove} className="p-6 space-y-4">
               <div className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 space-y-1 text-xs">
                 <p className="font-semibold text-indigo-900">
-                  Lô hàng xuất: <span className="font-mono">{selectedProp.lotCode}</span> ({selectedProp.grade})
+                  Lô hàng xuất: <span className="font-mono">{selectedProp.lotCode}</span> ({selectedProp.sourceWarehouse === 'KHO_A' ? 'Kho A (Xuất khẩu)' : 'Kho B (Công nghiệp)'})
                 </p>
                 <p className="text-indigo-800">
                   Khối lượng: {selectedProp.requestedQuantityKg.toLocaleString('vi-VN')} kg
@@ -954,6 +925,17 @@ export const OutboundView: React.FC<OutboundViewProps> = ({ currentUser }) => {
           setReasonModal({ isOpen: false, actionType: 'RETURN', targetId: '', entityCode: '' });
         }}
       />
+      {/* Warehouse Staff Dispatch Rejection Modal */}
+      {dispatchRejectModal.proposal && (
+        <ReasonModal
+          isOpen={dispatchRejectModal.isOpen}
+          title="Từ chối Xuất kho Bàn giao"
+          actionType="REJECT"
+          entityName={dispatchRejectModal.proposal.code}
+          onClose={() => setDispatchRejectModal({ isOpen: false, proposal: null })}
+          onSubmit={handleConfirmRejectDispatch}
+        />
+      )}
     </div>
   );
 };

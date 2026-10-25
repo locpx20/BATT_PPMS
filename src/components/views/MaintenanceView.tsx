@@ -72,6 +72,28 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
   const [afterImageUrl, setAfterImageUrl] = useState<string | undefined>();
   const [completionError, setCompletionError] = useState('');
 
+  // Actual Purchase Modal State (Sync to Finance)
+  const [purchaseModal, setPurchaseModal] = useState<{
+    isOpen: boolean;
+    requestId: string;
+    itemId: string;
+    materialName: string;
+    suggestedQty: number;
+    unit: string;
+  }>({
+    isOpen: false,
+    requestId: '',
+    itemId: '',
+    materialName: '',
+    suggestedQty: 1,
+    unit: 'Cái',
+  });
+  const [actualPurchaseQty, setActualPurchaseQty] = useState(1);
+  const [actualUnitPrice, setActualUnitPrice] = useState(500000);
+  const [actualSupplier, setActualSupplier] = useState('');
+  const [actualInvoiceNum, setActualInvoiceNum] = useState('');
+  const [actualInvoiceImg, setActualInvoiceImg] = useState<string | undefined>();
+
   // Reason modal for rejecting failure or material item
   const [reasonModal, setReasonModal] = useState<{
     isOpen: boolean;
@@ -170,6 +192,54 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
     });
     if (res.success) {
       showToast('success', 'Đã duyệt vật tư', 'Dòng vật tư đã được phê duyệt');
+    }
+  };
+
+  const handleOpenPurchaseModal = (requestId: string, item: any) => {
+    setPurchaseModal({
+      isOpen: true,
+      requestId,
+      itemId: item.id,
+      materialName: item.materialName,
+      suggestedQty: item.requestedQuantity,
+      unit: item.unit,
+    });
+    setActualPurchaseQty(item.requestedQuantity);
+    setActualUnitPrice(500000);
+    setActualSupplier('Công ty Thiết bị Cơ điện Bình Thuận');
+    setActualInvoiceNum('HD-' + Math.floor(10000 + Math.random() * 90000));
+    setActualInvoiceImg(undefined);
+  };
+
+  const handleConfirmActualPurchase = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = db.recordActualMaterialPurchase({
+      requestId: purchaseModal.requestId,
+      itemId: purchaseModal.itemId,
+      actualPurchasedQuantity: actualPurchaseQty,
+      actualUnitPriceVnd: actualUnitPrice,
+      supplierName: actualSupplier,
+      invoiceUrl: actualInvoiceImg,
+      purchaseNotes: actualInvoiceNum ? `Số HĐ: ${actualInvoiceNum}` : undefined,
+      user: currentUser,
+    });
+
+    if (res.success) {
+      showToast(
+        'success',
+        'Ghi nhận mua vật tư thành công',
+        `Đã tạo chi phí ${(actualPurchaseQty * actualUnitPrice).toLocaleString('vi-VN')} VND vào Sổ Tài chính`
+      );
+      setPurchaseModal({
+        isOpen: false,
+        requestId: '',
+        itemId: '',
+        materialName: '',
+        suggestedQty: 1,
+        unit: 'Cái',
+      });
+    } else {
+      showToast('error', 'Lỗi', res.error);
     }
   };
 
@@ -462,6 +532,25 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
                                   Từ chối dòng
                                 </button>
                               </div>
+                            ) : item.status === 'APPROVED' ? (
+                              item.isPurchased ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  ✓ Đã mua ({item.actualPurchasedQuantity} {item.unit} - {((item.actualPurchasedQuantity || 0) * (item.actualUnitPriceVnd || 0)).toLocaleString('vi-VN')} đ)
+                                </span>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="text-[11px] text-emerald-700 font-semibold">Đã duyệt</span>
+                                  {(currentUser.role === 'MS' || currentUser.role === 'M' || currentUser.role === 'O') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenPurchaseModal(req.id, item)}
+                                      className="px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold text-[11px] border border-indigo-200 cursor-pointer"
+                                    >
+                                      Ghi nhận mua
+                                    </button>
+                                  )}
+                                </div>
+                              )
                             ) : (
                               <span className="text-slate-400 text-[11px]">
                                 {item.decidedByName ? `Bởi ${item.decidedByName}` : '—'}
@@ -982,6 +1071,119 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ currentUser })
           setReasonModal({ ...reasonModal, isOpen: false });
         }}
       />
+
+      {/* GHI NHẬN MUA VẬT TƯ THỰC TẾ (ĐỒNG BỘ TÀI CHÍNH) */}
+      {purchaseModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Ghi nhận Mua Vật tư Thực tế</h3>
+                <p className="text-xs text-indigo-700 font-semibold">{purchaseModal.materialName}</p>
+              </div>
+              <button
+                onClick={() => setPurchaseModal({ ...purchaseModal, isOpen: false })}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmActualPurchase} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Số lượng thực mua ({purchaseModal.unit}) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={actualPurchaseQty}
+                    onChange={(e) => setActualPurchaseQty(Number(e.target.value))}
+                    className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Đơn giá mua (VND) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1000"
+                    value={actualUnitPrice}
+                    onChange={(e) => setActualUnitPrice(Number(e.target.value))}
+                    className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-hidden focus:border-indigo-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Total Calculation Display */}
+              <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
+                <span className="text-xs font-semibold text-indigo-900">Tổng tiền thanh toán:</span>
+                <span className="text-base font-bold text-indigo-950 font-mono">
+                  {(actualPurchaseQty * actualUnitPrice).toLocaleString('vi-VN')} VND
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Nhà cung cấp / Cửa hàng thiết bị
+                </label>
+                <input
+                  type="text"
+                  value={actualSupplier}
+                  onChange={(e) => setActualSupplier(e.target.value)}
+                  placeholder="Công ty điện cơ, đại lý phụ tùng..."
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Số hóa đơn / Chứng từ thanh toán
+                </label>
+                <input
+                  type="text"
+                  value={actualInvoiceNum}
+                  onChange={(e) => setActualInvoiceNum(e.target.value)}
+                  placeholder="HD-12345, PXK-9876..."
+                  className="w-full text-xs font-mono border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-hidden focus:border-indigo-500"
+                />
+              </div>
+
+              <EvidenceUpload
+                label="Ảnh chụp hóa đơn / Phiếu chi / Phiếu xuất kho"
+                value={actualInvoiceImg}
+                onChange={setActualInvoiceImg}
+              />
+
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
+                <span className="font-bold">✓ Tự động đồng bộ:</span>
+                <span>Chi phí này sẽ được ghi nhận ngay vào Sổ chi phí Module Tài chính</span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setPurchaseModal({ ...purchaseModal, isOpen: false })}
+                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                >
+                  Lưu &amp; Hạch toán Chi phí
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -170,6 +170,29 @@ class AuthService {
     return { success: true };
   }
 
+  public checkUsernameExists(username: string): { success: boolean; error?: string; user?: User } {
+    const user = db.getSnapshot().users.find((u) => u.username.toLowerCase() === username.trim().toLowerCase());
+    if (!user) {
+      return { success: false, error: 'Không tìm thấy tài khoản tương ứng' };
+    }
+    if (!user.isActive) {
+      return { success: false, error: 'Tài khoản đang bị tạm khóa' };
+    }
+    return { success: true, user };
+  }
+
+  public verifyOtp(username: string, otpCode: string): { success: boolean; error?: string } {
+    const user = db.getSnapshot().users.find((u) => u.username.toLowerCase() === username.trim().toLowerCase());
+    if (!user) {
+      return { success: false, error: 'Tài khoản không hợp lệ' };
+    }
+    // Test OTP accepted: 123 (or standard 6-digit test codes)
+    if (otpCode.trim() !== '123' && otpCode.trim() !== '123456') {
+      return { success: false, error: 'Mã xác thực OTP không chính xác hoặc đã hết hiệu lực' };
+    }
+    return { success: true };
+  }
+
   public resetPasswordWithOtp(
     username: string,
     otpCode: string,
@@ -179,8 +202,7 @@ class AuthService {
     if (!user) {
       return { success: false, error: 'Không tìm thấy tài khoản tương ứng' };
     }
-    // As specified in prompt: local test OTP 123 is accepted in test environment, but not shown on UI
-    if (otpCode.trim() !== '123') {
+    if (otpCode.trim() !== '123' && otpCode.trim() !== '123456') {
       return { success: false, error: 'Mã xác thực OTP không chính xác hoặc đã hết hiệu lực' };
     }
     if (!newPassword || newPassword.length < 6) {
